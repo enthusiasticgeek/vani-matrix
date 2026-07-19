@@ -59,5 +59,19 @@ fn main() -> i64 {
     assert mat_get(ref A1, 2, 0, 0) == 1.0;
     assert mat_get(ref A1, 2, 1, 1) == 4.0;
 
+    // mat_pow_n p=2 → A×A = [[1,2],[3,4]]² = [[7,10],[15,22]]
+    let A2: Vec<f64> = mat_pow_n(ref A, 2, 2);
+    assert mat_get(ref A2, 2, 0, 0) == 7.0;
+    assert mat_get(ref A2, 2, 0, 1) == 10.0;
+    assert mat_get(ref A2, 2, 1, 0) == 15.0;
+    assert mat_get(ref A2, 2, 1, 1) == 22.0;
+
+    // mat_pow_n p=3 → A×A×A = [[37,54],[81,118]]
+    let A3p: Vec<f64> = mat_pow_n(ref A, 2, 3);
+    assert mat_get(ref A3p, 2, 0, 0) == 37.0;
+    assert mat_get(ref A3p, 2, 0, 1) == 54.0;
+    assert mat_get(ref A3p, 2, 1, 0) == 81.0;
+    assert mat_get(ref A3p, 2, 1, 1) == 118.0;
+
     return 0;
 }

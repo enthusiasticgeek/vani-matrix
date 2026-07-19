@@ -247,13 +247,18 @@ fn mat_vec_mul(A: ref Vec<f64>, x: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
 }
 
 // Integer matrix power: A^p for p ≥ 0. p=0 returns identity. O(n³ log p).
-// STUB — implement via repeated squaring in v0.1.0.
+// Repeated squaring: result accumulates base^(2^k) for each set bit of p.
 fn mat_pow_n(A: ref Vec<f64>, n: i64, p: i64) -> Vec<f64> {
     if p == 0 { return mat_identity(n); }
-    if p == 1 { return mat_copy(A, n, n); }
-    // TODO: repeated squaring
-    // Placeholder: return A (wrong for p>1 but type-correct)
-    return mat_copy(A, n, n);
+    let result: Vec<f64> = mat_identity(n);
+    let base: Vec<f64> = mat_copy(A, n, n);
+    let e: i64 = p;
+    while e > 0 {
+        if e % 2 == 1 { result = mat_mul(ref result, ref base, n); }
+        base = mat_mul(ref base, ref base, n);
+        e = e / 2;
+    }
+    return result;
 }
 
 // ── Section 5: 2×2 and 3×3 closed-form ───────────────────────────────────────
@@ -311,27 +316,134 @@ fn mat_inv_3x3(A: ref Vec<f64>) -> Vec<f64> {
 // n×n matrix inverse via Gauss-Jordan on augmented [A | I].
 // Returns n×n zero matrix if A is singular (pivot < 1e-12).
 // WCET = n³ × 40 cycles.
-// STUB — full implementation in v0.1.0.
 fn mat_inv_n(A: ref Vec<f64>, n: i64) -> Vec<f64> {
-    // TODO: augmented row reduction with partial pivoting
-    return mat_zeros(n, n);
+    let w: i64 = 2 * n;
+    let aug: Vec<f64> = mat_zeros(n, w);
+    let i: i64 = 0;
+    while i < n {
+        let j: i64 = 0;
+        while j < n { set(mut ref aug, i * w + j, A[i * n + j]); j = j + 1; }
+        set(mut ref aug, i * w + n + i, 1.0);
+        i = i + 1;
+    }
+
+    let col: i64 = 0;
+    while col < n {
+        let pivot_row: i64 = col;
+        let pivot_val: f64 = abs(aug[col * w + col]);
+        let r: i64 = col + 1;
+        while r < n {
+            let v: f64 = abs(aug[r * w + col]);
+            if v > pivot_val { pivot_val = v; pivot_row = r; }
+            r = r + 1;
+        }
+        if pivot_val < 1.0e-12 { return mat_zeros(n, n); }
+
+        if pivot_row != col {
+            let k: i64 = 0;
+            while k < w {
+                let tmp: f64 = aug[col * w + k];
+                set(mut ref aug, col * w + k, aug[pivot_row * w + k]);
+                set(mut ref aug, pivot_row * w + k, tmp);
+                k = k + 1;
+            }
+        }
+
+        let pv: f64 = aug[col * w + col];
+        let k2: i64 = 0;
+        while k2 < w { set(mut ref aug, col * w + k2, aug[col * w + k2] / pv); k2 = k2 + 1; }
+
+        let r2: i64 = 0;
+        while r2 < n {
+            if r2 != col {
+                let factor: f64 = aug[r2 * w + col];
+                let k3: i64 = 0;
+                while k3 < w {
+                    set(mut ref aug, r2 * w + k3, aug[r2 * w + k3] - factor * aug[col * w + k3]);
+                    k3 = k3 + 1;
+                }
+            }
+            r2 = r2 + 1;
+        }
+        col = col + 1;
+    }
+
+    let inv: Vec<f64> = mat_zeros(n, n);
+    let ii: i64 = 0;
+    while ii < n {
+        let jj: i64 = 0;
+        while jj < n { set(mut ref inv, ii * n + jj, aug[ii * w + n + jj]); jj = jj + 1; }
+        ii = ii + 1;
+    }
+    return inv;
 }
 
 // Determinant via LU decomposition.
 // WCET dominated by lu_factor: n³ × 20 cycles.
-// STUB — implement after lu_factor.
 fn mat_det_n(A: ref Vec<f64>, n: i64) -> f64 {
-    // TODO: lu_factor then product of U diagonal × pivot sign
-    return 0.0;
+    let packed: Vec<f64> = lu_factor(A, n);
+    return lu_det(ref packed, n);
 }
 
 // Solve Ax = b for x via Gauss-Jordan augmented [A | b].
 // Returns n-Vec zero if A is singular.
 // WCET = n³ × 40 cycles.
-// STUB — full implementation in v0.1.0.
 fn mat_solve(A: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
-    // TODO: augmented row reduction [A | b] → [I | x]
-    return mat_zeros(n, 1);
+    let w: i64 = n + 1;
+    let aug: Vec<f64> = mat_zeros(n, w);
+    let i: i64 = 0;
+    while i < n {
+        let j: i64 = 0;
+        while j < n { set(mut ref aug, i * w + j, A[i * n + j]); j = j + 1; }
+        set(mut ref aug, i * w + n, b[i]);
+        i = i + 1;
+    }
+
+    let col: i64 = 0;
+    while col < n {
+        let pivot_row: i64 = col;
+        let pivot_val: f64 = abs(aug[col * w + col]);
+        let r: i64 = col + 1;
+        while r < n {
+            let v: f64 = abs(aug[r * w + col]);
+            if v > pivot_val { pivot_val = v; pivot_row = r; }
+            r = r + 1;
+        }
+        if pivot_val < 1.0e-12 { return mat_zeros(n, 1); }
+
+        if pivot_row != col {
+            let k: i64 = 0;
+            while k < w {
+                let tmp: f64 = aug[col * w + k];
+                set(mut ref aug, col * w + k, aug[pivot_row * w + k]);
+                set(mut ref aug, pivot_row * w + k, tmp);
+                k = k + 1;
+            }
+        }
+
+        let pv: f64 = aug[col * w + col];
+        let k2: i64 = 0;
+        while k2 < w { set(mut ref aug, col * w + k2, aug[col * w + k2] / pv); k2 = k2 + 1; }
+
+        let r2: i64 = 0;
+        while r2 < n {
+            if r2 != col {
+                let factor: f64 = aug[r2 * w + col];
+                let k3: i64 = 0;
+                while k3 < w {
+                    set(mut ref aug, r2 * w + k3, aug[r2 * w + k3] - factor * aug[col * w + k3]);
+                    k3 = k3 + 1;
+                }
+            }
+            r2 = r2 + 1;
+        }
+        col = col + 1;
+    }
+
+    let x: Vec<f64> = vec(aug[n]);
+    let ii: i64 = 1;
+    while ii < n { push(mut ref x, aug[ii * w + n]); ii = ii + 1; }
+    return x;
 }
 
 // ── Section 7: LU decomposition (Doolittle, partial pivoting) ─────────────────
@@ -340,48 +452,161 @@ fn mat_solve(A: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
 //   [0 .. n²-1]    combined LU: L below diagonal (implicit 1s), U on/above
 //   [n² .. n²+n-1] pivot row indices as f64
 
-// Factor A = P L U. Returns packed Vec of length n²+n.
+// Factor A = P L U (Doolittle, partial pivoting). Returns packed Vec of length n²+n:
+// [0..n²-1] combined LU, [n²..n²+n-1] pivot row index used at each step k.
 // WCET = n³ × 20 cycles.
-// STUB — full implementation in v0.1.0.
 fn lu_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
-    // TODO: Doolittle algorithm with partial pivoting
-    let packed: Vec<f64> = mat_zeros(1, n * n + n);
+    let LU: Vec<f64> = mat_copy(A, n, n);
+    let piv: Vec<f64> = mat_zeros(1, n);
+
+    let k: i64 = 0;
+    while k < n {
+        let pivot_row: i64 = k;
+        let pivot_val: f64 = abs(LU[k * n + k]);
+        let r: i64 = k + 1;
+        while r < n {
+            let v: f64 = abs(LU[r * n + k]);
+            if v > pivot_val { pivot_val = v; pivot_row = r; }
+            r = r + 1;
+        }
+        set(mut ref piv, k, pivot_row as f64);
+
+        if pivot_row != k {
+            let c: i64 = 0;
+            while c < n {
+                let tmp: f64 = LU[k * n + c];
+                set(mut ref LU, k * n + c, LU[pivot_row * n + c]);
+                set(mut ref LU, pivot_row * n + c, tmp);
+                c = c + 1;
+            }
+        }
+
+        let diag: f64 = LU[k * n + k];
+        if abs(diag) > 1.0e-14 {
+            let i2: i64 = k + 1;
+            while i2 < n {
+                let factor: f64 = LU[i2 * n + k] / diag;
+                set(mut ref LU, i2 * n + k, factor);
+                let j2: i64 = k + 1;
+                while j2 < n {
+                    set(mut ref LU, i2 * n + j2, LU[i2 * n + j2] - factor * LU[k * n + j2]);
+                    j2 = j2 + 1;
+                }
+                i2 = i2 + 1;
+            }
+        }
+        k = k + 1;
+    }
+
+    let packed: Vec<f64> = mat_copy(ref LU, n, n);
+    let idx: i64 = 0;
+    while idx < n { push(mut ref packed, piv[idx]); idx = idx + 1; }
     return packed;
 }
 
 // Determinant from lu_factor output: product of U diagonal × (−1)^{swap_count}.
 // WCET = n × 8 cycles.
-// STUB — implement after lu_factor.
 fn lu_det(lu_packed: ref Vec<f64>, n: i64) -> f64 {
-    // TODO: extract U diagonal from lu_packed[0..n²], count pivot swaps
-    return 0.0;
+    let d: f64 = 1.0;
+    let i: i64 = 0;
+    while i < n { d = d * lu_packed[i * n + i]; i = i + 1; }
+
+    let swaps: i64 = 0;
+    let k: i64 = 0;
+    while k < n {
+        let p: i64 = lu_packed[n * n + k] as i64;
+        if p != k { swaps = swaps + 1; }
+        k = k + 1;
+    }
+    if swaps % 2 == 1 { d = 0.0 - d; }
+    return d;
 }
 
-// Solve Ax=b given lu_factor output. Forward sub (L), then back sub (U).
+// Solve Ax=b given lu_factor output. Applies pivots, forward sub (L), back sub (U).
 // WCET = n² × 10 cycles.
-// STUB — full implementation in v0.1.0.
 fn lu_solve(lu_packed: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
-    // TODO: apply pivot permutation to b, forward sub Ly=Pb, back sub Ux=y
-    return mat_zeros(n, 1);
+    let y: Vec<f64> = mat_copy(b, 1, n);
+    let k: i64 = 0;
+    while k < n {
+        let p: i64 = lu_packed[n * n + k] as i64;
+        if p != k {
+            let tmp: f64 = y[k];
+            set(mut ref y, k, y[p]);
+            set(mut ref y, p, tmp);
+        }
+        k = k + 1;
+    }
+
+    let i: i64 = 1;
+    while i < n {
+        let s: f64 = y[i];
+        let j: i64 = 0;
+        while j < i { s = s - lu_packed[i * n + j] * y[j]; j = j + 1; }
+        set(mut ref y, i, s);
+        i = i + 1;
+    }
+
+    let x: Vec<f64> = mat_copy(ref y, 1, n);
+    let ii: i64 = n - 1;
+    while ii >= 0 {
+        let s2: f64 = x[ii];
+        let jj: i64 = ii + 1;
+        while jj < n { s2 = s2 - lu_packed[ii * n + jj] * x[jj]; jj = jj + 1; }
+        set(mut ref x, ii, s2 / lu_packed[ii * n + ii]);
+        ii = ii - 1;
+    }
+    return x;
 }
 
 // ── Section 8: Cholesky decomposition (symmetric positive-definite) ───────────
 
-// Cholesky factorisation: A = L Lᵀ for symmetric positive-definite A.
-// Returns lower-triangular L (n×n flat). Returns zero matrix if A is not SPD
-// (detected when a diagonal entry of L would be sqrt of a non-positive number).
-// WCET = n³/3 × 16 cycles.
-// STUB — full implementation in v0.1.0.
+// Cholesky factorisation (Cholesky-Banachiewicz): A = L Lᵀ for symmetric
+// positive-definite A. Returns lower-triangular L (n×n flat). Returns zero
+// matrix if A is not SPD (a diagonal term of L would be sqrt of a
+// non-positive number). WCET = n³/3 × 16 cycles.
 fn cholesky_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
-    // TODO: Cholesky-Banachiewicz algorithm
-    return mat_zeros(n, n);
+    let L: Vec<f64> = mat_zeros(n, n);
+    let i: i64 = 0;
+    while i < n {
+        let j: i64 = 0;
+        while j <= i {
+            let s: f64 = A[i * n + j];
+            let k: i64 = 0;
+            while k < j { s = s - L[i * n + k] * L[j * n + k]; k = k + 1; }
+            if i == j {
+                if s <= 0.0 { return mat_zeros(n, n); }
+                set(mut ref L, i * n + j, sqrt(s));
+            } else {
+                set(mut ref L, i * n + j, s / L[j * n + j]);
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return L;
 }
 
 // Solve Ax=b given Cholesky factor L (A=LLᵀ).
-// Forward substitution Ly=b, back substitution Lᵀx=y.
-// WCET = n² × 10 cycles.
-// STUB — full implementation in v0.1.0.
+// Forward substitution Ly=b, back substitution Lᵀx=y. WCET = n² × 10 cycles.
 fn cholesky_solve(L: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
-    // TODO: forward sub on L, then back sub on Lᵀ
-    return mat_zeros(n, 1);
+    let y: Vec<f64> = mat_copy(b, 1, n);
+    let i: i64 = 0;
+    while i < n {
+        let s: f64 = y[i];
+        let j: i64 = 0;
+        while j < i { s = s - L[i * n + j] * y[j]; j = j + 1; }
+        set(mut ref y, i, s / L[i * n + i]);
+        i = i + 1;
+    }
+
+    let x: Vec<f64> = mat_copy(ref y, 1, n);
+    let ii: i64 = n - 1;
+    while ii >= 0 {
+        let s2: f64 = x[ii];
+        let jj: i64 = ii + 1;
+        while jj < n { s2 = s2 - L[jj * n + ii] * x[jj]; jj = jj + 1; }
+        set(mut ref x, ii, s2 / L[ii * n + ii]);
+        ii = ii - 1;
+    }
+    return x;
 }

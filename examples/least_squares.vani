@@ -2,7 +2,8 @@
 //
 // Fit a line y = β₀ + β₁x to 5 points.
 // Data: (1,2), (2,4), (3,5), (4,4), (5,5)
-// True OLS solution: β₀ ≈ 1.4, β₁ ≈ 0.8
+// True OLS solution: β₀ = 2.2, β₁ = 0.6 (verified by hand via normal
+// equations [[5,15],[15,55]]β=[20,66], and by residuals summing to zero)
 //
 // Design matrix X is 5×2:  first column all 1s (intercept), second column x values.
 // X = [[1,1],[1,2],[1,3],[1,4],[1,5]]
@@ -25,7 +26,7 @@ fn main() -> i64 {
 
     print "=== Least squares: y = β₀ + β₁x ===";
     print "Data: (1,2) (2,4) (3,5) (4,4) (5,5)";
-    print "Expected: β₀ ≈ 1.4, β₁ ≈ 0.8";
+    print "Expected: β₀ = 2.2, β₁ = 0.6";
     print "";
 
     // Xᵀ is 2×5, XᵀX is 2×2
@@ -41,11 +42,11 @@ fn main() -> i64 {
     print "Xᵀy: [", Xty[0], ",", Xty[1], "]";
     print "";
 
-    // β = (XᵀX)⁻¹ Xᵀy  (stub — returns zeros until mat_inv_n implemented)
+    // β = (XᵀX)⁻¹ Xᵀy
     let XtXinv: Vec<f64> = mat_inv_n(ref XtX, 2);
     let beta: Vec<f64> = mat_vec_mul(ref XtXinv, ref Xty, 2, 2);
-    print "β₀ (intercept) =", beta[0], "  (expected ≈ 1.4)";
-    print "β₁ (slope)     =", beta[1], "  (expected ≈ 0.8)";
+    print "β₀ (intercept) =", beta[0], "  (expected 2.2)";
+    print "β₁ (slope)     =", beta[1], "  (expected 0.6)";
     print "";
 
     // Predictions ŷ = X β

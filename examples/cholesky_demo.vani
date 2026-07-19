@@ -3,11 +3,11 @@
 // Given a symmetric positive-definite matrix A, compute L such that A = LLᵀ,
 // then use it to solve Ax = b cheaply and to compute the determinant as det(L)².
 //
-// A = [[4, 2, 0],    det(A) = 4*9 - 2*2*4 = 36 − 16 = ?
-//       [2, 5, 1],   Actually: det = 4(5*4 - 1*1) - 2(2*4 - 1*0) + 0 = 76 - 16 = 60  (TODO verify)
+// A = [[4, 2, 0],    det(A) = 4(5*4 - 1*1) - 2(2*4 - 1*0) + 0 = 76 - 16 = 60
+//       [2, 5, 1],
 //       [0, 1, 4]]
 //
-// b = [6, 8, 4]  →  expected solution x (once implemented)
+// b = [6, 8, 4]  →  x ≈ [0.96667, 1.06667, 0.73333] (verified: Ax = b exactly)
 //
 // Run with:  vanic run examples/cholesky_demo.vani
 

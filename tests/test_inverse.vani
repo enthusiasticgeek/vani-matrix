@@ -56,11 +56,38 @@ fn main() -> i64 {
     assert close(mat_get(ref A3iA3, 3, 2, 2), 1.0);
     assert close(mat_get(ref A3iA3, 3, 0, 1), 0.0);
 
-    // ── General n×n stubs — uncomment when mat_inv_n / mat_solve are implemented ──
-    // assert close(mat_det_n(ref A3, 3), -3.0);
-    // let b: Vec<f64> = vec(1.0); push(mut ref b, 0.0); push(mut ref b, 0.0);
-    // let x: Vec<f64> = mat_solve(ref I3, ref b, 3);
-    // assert close(x[0], 1.0);
+    // ── General n×n (mat_inv_n / mat_det_n / mat_solve) ────────────────────────
+    assert close(mat_det_n(ref A3, 3), 0.0 - 3.0);
+
+    let b: Vec<f64> = vec(1.0); push(mut ref b, 0.0); push(mut ref b, 0.0);
+    let x: Vec<f64> = mat_solve(ref I3, ref b, 3);
+    assert close(x[0], 1.0);
+    assert close(x[1], 0.0);
+    assert close(x[2], 0.0);
+
+    // mat_inv_n on A3: A3 × inv(A3) ≈ I
+    let A3ni: Vec<f64> = mat_inv_n(ref A3, 3);
+    let A3nA3: Vec<f64> = mat_mul(ref A3, ref A3ni, 3);
+    assert close(mat_get(ref A3nA3, 3, 0, 0), 1.0);
+    assert close(mat_get(ref A3nA3, 3, 1, 1), 1.0);
+    assert close(mat_get(ref A3nA3, 3, 2, 2), 1.0);
+    assert close(mat_get(ref A3nA3, 3, 0, 1), 0.0);
+
+    // mat_solve on the same A3 system, general n×n
+    let b3: Vec<f64> = vec(6.0); push(mut ref b3, 15.0); push(mut ref b3, 25.0);
+    let x3: Vec<f64> = mat_solve(ref A3, ref b3, 3);
+    let Ax3: Vec<f64> = mat_vec_mul(ref A3, ref x3, 3, 3);
+    assert close(Ax3[0], 6.0);
+    assert close(Ax3[1], 15.0);
+    assert close(Ax3[2], 25.0);
+
+    // singular n×n → mat_inv_n returns zeros
+    let Sn: Vec<f64> = vec(1.0);
+    push(mut ref Sn, 2.0); push(mut ref Sn, 3.0);
+    push(mut ref Sn, 2.0); push(mut ref Sn, 4.0); push(mut ref Sn, 6.0);
+    push(mut ref Sn, 1.0); push(mut ref Sn, 1.0); push(mut ref Sn, 1.0);
+    let Sni: Vec<f64> = mat_inv_n(ref Sn, 3);
+    assert close(mat_get(ref Sni, 3, 0, 0), 0.0);
 
     return 0;
 }

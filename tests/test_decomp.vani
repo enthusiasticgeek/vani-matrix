@@ -21,14 +21,17 @@ fn main() -> i64 {
     let packed: Vec<f64> = lu_factor(ref A, 3);
     assert (len(packed) as i64) == 12;
 
-    // Once implemented, uncomment:
-    // let d: f64 = lu_det(ref packed, 3);
-    // assert close(d, 0.0 - 2.0);   // det([[2,1,1],[4,3,3],[8,7,9]]) = -2
+    let d: f64 = lu_det(ref packed, 3);
+    assert close(d, 4.0);   // det([[2,1,1],[4,3,3],[8,7,9]]) = 4 (cross-checked via mat_det_3x3)
 
-    // lu_solve stub returns a Vec — check length (n elements)
+    // lu_solve: A x = b, verify via residual A x ≈ b
     let bv: Vec<f64> = vec(1.0); push(mut ref bv, 2.0); push(mut ref bv, 3.0);
     let xs: Vec<f64> = lu_solve(ref packed, ref bv, 3);
     assert (len(xs) as i64) == 3;
+    let Axs: Vec<f64> = mat_vec_mul(ref A, ref xs, 3, 3);
+    assert close(Axs[0], 1.0);
+    assert close(Axs[1], 2.0);
+    assert close(Axs[2], 3.0);
 
     // ── Cholesky stub interface tests ──────────────────────────────────────
 
@@ -38,17 +41,26 @@ fn main() -> i64 {
     let L: Vec<f64> = cholesky_factor(ref Aspd, 2);
     assert (len(L) as i64) == 4;
 
-    // cholesky_solve stub returns a Vec — check length
+    // Verify L × Lᵀ ≈ A
+    let Lt: Vec<f64> = mat_transpose(ref L, 2, 2);
+    let LLt: Vec<f64> = mat_mul(ref L, ref Lt, 2);
+    assert close(mat_get(ref LLt, 2, 0, 0), 4.0);
+    assert close(mat_get(ref LLt, 2, 0, 1), 2.0);
+    assert close(mat_get(ref LLt, 2, 1, 1), 3.0);
+
+    // cholesky_solve: Ax=b, verify via residual A x ≈ b
     let b2: Vec<f64> = vec(1.0); push(mut ref b2, 1.0);
     let xs2: Vec<f64> = cholesky_solve(ref L, ref b2, 2);
     assert (len(xs2) as i64) == 2;
+    let Ax2: Vec<f64> = mat_vec_mul(ref Aspd, ref xs2, 2, 2);
+    assert close(Ax2[0], 1.0);
+    assert close(Ax2[1], 1.0);
 
-    // Once cholesky_factor is implemented, verify L × Lᵀ ≈ A:
-    // let Lt: Vec<f64> = mat_transpose(ref L, 2, 2);
-    // let LLt: Vec<f64> = mat_mul(ref L, ref Lt, 2);
-    // assert close(mat_get(ref LLt, 2, 0, 0), 4.0);
-    // assert close(mat_get(ref LLt, 2, 0, 1), 2.0);
-    // assert close(mat_get(ref LLt, 2, 1, 1), 3.0);
+    // non-SPD matrix → cholesky_factor returns zeros
+    let Bad: Vec<f64> = vec(1.0);
+    push(mut ref Bad, 2.0); push(mut ref Bad, 2.0); push(mut ref Bad, 1.0);
+    let Lbad: Vec<f64> = cholesky_factor(ref Bad, 2);
+    assert close(mat_get(ref Lbad, 2, 0, 0), 0.0);
 
     return 0;
 }
