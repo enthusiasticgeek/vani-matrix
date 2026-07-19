@@ -1,0 +1,12 @@
+[package]
+name    = "matrix"
+version = "0.1.0"
+entry   = "src/lib.vani"
+authors = ["enthusiasticgeek"]
+license = "MIT"
+description = "Dense linear algebra for vāṇī: matrix construction, arithmetic, multiplication, inversion, LU and Cholesky decomposition."
+registry = "kosh"
+
+[deps]
+# No external deps — primitive math (sqrt, abs, pow, …) is provided by the vāṇī
+# compiler builtins and must NOT be reimplemented here.

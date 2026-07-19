@@ -1,0 +1,387 @@
+// vani-matrix  v0.1.0 — dense linear algebra library
+//
+// ENCODING: all matrices are flat row-major Vec<f64>.
+//   Element (i, j) of an m×n matrix M: M[i * n + j]
+//   Dimension args are always explicit — no metadata hidden in the Vec.
+//
+// LU PACKED FORMAT: lu_factor returns Vec<f64> of length n*n + n.
+//   [0 .. n²-1]   — combined LU (L below diagonal, implicit 1 on diag; U on/above)
+//   [n² .. n²+n-1] — pivot row indices as f64
+//
+// BUILTINS (do NOT reimplement): abs, sqrt, pow, exp, log, sin, cos,
+//   f64_tgamma, f64_lgamma, i64_factorial, i64_binomial
+
+// ── Section 1: Constructors and accessors ─────────────────────────────────────
+
+// All-zero m×n matrix. WCET = rows×cols × 8 cycles.
+fn mat_zeros(rows: i64, cols: i64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let M: Vec<f64> = vec(0.0);
+    let i: i64 = 1;
+    while i < n { push(mut ref M, 0.0); i = i + 1; }
+    return M;
+}
+
+// All-ones m×n matrix. WCET = rows×cols × 8 cycles.
+fn mat_ones(rows: i64, cols: i64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let M: Vec<f64> = vec(1.0);
+    let i: i64 = 1;
+    while i < n { push(mut ref M, 1.0); i = i + 1; }
+    return M;
+}
+
+// n×n identity matrix. WCET = n² × 12 cycles.
+fn mat_identity(n: i64) -> Vec<f64> {
+    let M: Vec<f64> = mat_zeros(n, n);
+    let i: i64 = 0;
+    while i < n { set(mut ref M, i * n + i, 1.0); i = i + 1; }
+    return M;
+}
+
+// n×n diagonal matrix from a Vec of n values. WCET = n² × 12 cycles.
+fn mat_from_diag(diag: ref Vec<f64>, n: i64) -> Vec<f64> {
+    let M: Vec<f64> = mat_zeros(n, n);
+    let i: i64 = 0;
+    while i < n { set(mut ref M, i * n + i, diag[i]); i = i + 1; }
+    return M;
+}
+
+// Deep copy of an m×n matrix. WCET = rows×cols × 8 cycles.
+fn mat_copy(A: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let M: Vec<f64> = vec(A[0]);
+    let i: i64 = 1;
+    while i < n { push(mut ref M, A[i]); i = i + 1; }
+    return M;
+}
+
+// Read element (i, j) from a matrix with `cols` columns. WCET ≈ 4 cycles.
+fn mat_get(A: ref Vec<f64>, cols: i64, i: i64, j: i64) -> f64 {
+    return A[i * cols + j];
+}
+
+// Write v to element (i, j). Returns 0 (unit substitute). WCET ≈ 4 cycles.
+// Note: A must be a mut ref parameter; pass it directly to set (no extra mut ref).
+fn mat_set(A: mut ref Vec<f64>, cols: i64, i: i64, j: i64, v: f64) -> i64 {
+    set(A, i * cols + j, v);
+    return 0;
+}
+
+// Extract row i from a matrix with n_cols columns. WCET = n_cols × 12 cycles.
+fn mat_row(A: ref Vec<f64>, cols: i64, i: i64) -> Vec<f64> {
+    let base: i64 = i * cols;
+    let row: Vec<f64> = vec(A[base]);
+    let j: i64 = 1;
+    while j < cols { push(mut ref row, A[base + j]); j = j + 1; }
+    return row;
+}
+
+// Extract column j from an m×n matrix. WCET = rows × 12 cycles.
+fn mat_col(A: ref Vec<f64>, rows: i64, cols: i64, j: i64) -> Vec<f64> {
+    let col: Vec<f64> = vec(A[j]);
+    let i: i64 = 1;
+    while i < rows { push(mut ref col, A[i * cols + j]); i = i + 1; }
+    return col;
+}
+
+// ── Section 2: Arithmetic (element-wise) ──────────────────────────────────────
+
+// Element-wise A + B. WCET = rows×cols × 10 cycles.
+fn mat_add(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let C: Vec<f64> = vec(A[0] + B[0]);
+    let i: i64 = 1;
+    while i < n { push(mut ref C, A[i] + B[i]); i = i + 1; }
+    return C;
+}
+
+// Element-wise A − B. WCET = rows×cols × 10 cycles.
+fn mat_sub(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let C: Vec<f64> = vec(A[0] - B[0]);
+    let i: i64 = 1;
+    while i < n { push(mut ref C, A[i] - B[i]); i = i + 1; }
+    return C;
+}
+
+// Scalar multiply: every element of A times s. WCET = rows×cols × 8 cycles.
+fn mat_scale(A: ref Vec<f64>, rows: i64, cols: i64, s: f64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let C: Vec<f64> = vec(A[0] * s);
+    let i: i64 = 1;
+    while i < n { push(mut ref C, A[i] * s); i = i + 1; }
+    return C;
+}
+
+// Element-wise product (Hadamard): C[k] = A[k] × B[k]. WCET = rows×cols × 8 cycles.
+fn mat_hadamard(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
+    let n: i64 = rows * cols;
+    let C: Vec<f64> = vec(A[0] * B[0]);
+    let i: i64 = 1;
+    while i < n { push(mut ref C, A[i] * B[i]); i = i + 1; }
+    return C;
+}
+
+// Transpose: rows×cols A → cols×rows result. T[j*rows+i] = A[i*cols+j].
+// WCET = rows×cols × 12 cycles.
+fn mat_transpose(A: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
+    let T: Vec<f64> = mat_zeros(cols, rows);
+    let i: i64 = 0;
+    while i < rows {
+        let j: i64 = 0;
+        while j < cols {
+            let idx_t: i64 = j * rows + i;
+            set(mut ref T, idx_t, A[i * cols + j]);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return T;
+}
+
+// ── Section 3: Vector ops and norms ───────────────────────────────────────────
+
+// Dot product of the first n elements of x and y. WCET = n × 10 cycles.
+// Named dot_n to avoid conflict with the vāṇī compiler builtin vec_dot(x,y).
+fn dot_n(x: ref Vec<f64>, y: ref Vec<f64>, n: i64) -> f64 {
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n { s = s + x[i] * y[i]; i = i + 1; }
+    return s;
+}
+
+// Euclidean norm of the first n elements of x: sqrt(Σ xᵢ²). WCET = n × 10 + sqrt.
+fn vec_norm2(x: ref Vec<f64>, n: i64) -> f64 {
+    return sqrt(dot_n(x, x, n));
+}
+
+// Outer product: m-Vec x, n-Vec y → m×n matrix R[i*n+j] = x[i]*y[j].
+// WCET = m×n × 10 cycles.
+fn vec_outer(x: ref Vec<f64>, y: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
+    let R: Vec<f64> = mat_zeros(m, n);
+    let i: i64 = 0;
+    while i < m {
+        let j: i64 = 0;
+        while j < n {
+            set(mut ref R, i * n + j, x[i] * y[j]);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return R;
+}
+
+// Frobenius norm: sqrt(Σ A[k]²). WCET = rows×cols × 12 cycles.
+fn mat_norm_fro(A: ref Vec<f64>, rows: i64, cols: i64) -> f64 {
+    let n: i64 = rows * cols;
+    let s: f64 = 0.0;
+    let i: i64 = 0;
+    while i < n { s = s + A[i] * A[i]; i = i + 1; }
+    return sqrt(s);
+}
+
+// Max absolute entry. WCET = rows×cols × 8 cycles.
+fn mat_norm_max(A: ref Vec<f64>, rows: i64, cols: i64) -> f64 {
+    let n: i64 = rows * cols;
+    let m: f64 = abs(A[0]);
+    let i: i64 = 1;
+    while i < n {
+        let v: f64 = abs(A[i]);
+        if v > m { m = v; }
+        i = i + 1;
+    }
+    return m;
+}
+
+// ── Section 4: Multiplication ──────────────────────────────────────────────────
+
+// Square n×n matrix multiply: C = A × B. WCET = n³ × 10 cycles.
+fn mat_mul(A: ref Vec<f64>, B: ref Vec<f64>, n: i64) -> Vec<f64> {
+    let C: Vec<f64> = mat_zeros(n, n);
+    let i: i64 = 0;
+    while i < n {
+        let j: i64 = 0;
+        while j < n {
+            let s: f64 = 0.0;
+            let k: i64 = 0;
+            while k < n { s = s + A[i * n + k] * B[k * n + j]; k = k + 1; }
+            set(mut ref C, i * n + j, s);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return C;
+}
+
+// Rectangular multiply: (m×k) × (k×n) → (m×n). WCET = m×k×n × 10 cycles.
+fn mat_mul_rect(A: ref Vec<f64>, B: ref Vec<f64>, m: i64, k: i64, n: i64) -> Vec<f64> {
+    let C: Vec<f64> = mat_zeros(m, n);
+    let i: i64 = 0;
+    while i < m {
+        let j: i64 = 0;
+        while j < n {
+            let s: f64 = 0.0;
+            let l: i64 = 0;
+            while l < k { s = s + A[i * k + l] * B[l * n + j]; l = l + 1; }
+            set(mut ref C, i * n + j, s);
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    return C;
+}
+
+// Matrix-vector multiply: (m×n) × (n-Vec) → (m-Vec). WCET = m×n × 10 cycles.
+fn mat_vec_mul(A: ref Vec<f64>, x: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
+    let y: Vec<f64> = vec(0.0);
+    let i: i64 = 0;
+    while i < m {
+        let s: f64 = 0.0;
+        let j: i64 = 0;
+        while j < n { s = s + A[i * n + j] * x[j]; j = j + 1; }
+        if i == 0 { set(mut ref y, 0, s); } else { push(mut ref y, s); }
+        i = i + 1;
+    }
+    return y;
+}
+
+// Integer matrix power: A^p for p ≥ 0. p=0 returns identity. O(n³ log p).
+// STUB — implement via repeated squaring in v0.1.0.
+fn mat_pow_n(A: ref Vec<f64>, n: i64, p: i64) -> Vec<f64> {
+    if p == 0 { return mat_identity(n); }
+    if p == 1 { return mat_copy(A, n, n); }
+    // TODO: repeated squaring
+    // Placeholder: return A (wrong for p>1 but type-correct)
+    return mat_copy(A, n, n);
+}
+
+// ── Section 5: 2×2 and 3×3 closed-form ───────────────────────────────────────
+
+// Determinant of a 2×2 matrix [a b; c d]. WCET ≈ 8 cycles.
+fn mat_det_2x2(A: ref Vec<f64>) -> f64 {
+    return A[0] * A[3] - A[1] * A[2];
+}
+
+// Inverse of a 2×2 matrix. Returns zero matrix if |det| < 1e-14.
+// WCET ≈ 32 cycles.
+fn mat_inv_2x2(A: ref Vec<f64>) -> Vec<f64> {
+    let d: f64 = mat_det_2x2(A);
+    if abs(d) < 1.0e-14 { return mat_zeros(2, 2); }
+    let inv: f64 = 1.0 / d;
+    let R: Vec<f64> = vec(A[3] * inv);
+    push(mut ref R, 0.0 - A[1] * inv);
+    push(mut ref R, 0.0 - A[2] * inv);
+    push(mut ref R, A[0] * inv);
+    return R;
+}
+
+// Determinant of a 3×3 matrix via cofactor expansion along row 0.
+// WCET ≈ 40 cycles.
+fn mat_det_3x3(A: ref Vec<f64>) -> f64 {
+    let a: f64 = A[0]; let b: f64 = A[1]; let c: f64 = A[2];
+    let d: f64 = A[3]; let e: f64 = A[4]; let f: f64 = A[5];
+    let g: f64 = A[6]; let h: f64 = A[7]; let k: f64 = A[8];
+    return a * (e * k - f * h) - b * (d * k - f * g) + c * (d * h - e * g);
+}
+
+// Inverse of a 3×3 matrix via adjugate / det. Returns zeros if |det| < 1e-14.
+// WCET ≈ 160 cycles.
+fn mat_inv_3x3(A: ref Vec<f64>) -> Vec<f64> {
+    let d: f64 = mat_det_3x3(A);
+    if abs(d) < 1.0e-14 { return mat_zeros(3, 3); }
+    let inv: f64 = 1.0 / d;
+    let a: f64 = A[0]; let b: f64 = A[1]; let c: f64 = A[2];
+    let p: f64 = A[3]; let q: f64 = A[4]; let r: f64 = A[5];
+    let u: f64 = A[6]; let v: f64 = A[7]; let w: f64 = A[8];
+    let R: Vec<f64> = vec((q * w - r * v) * inv);
+    push(mut ref R, (0.0 - (b * w - c * v)) * inv);
+    push(mut ref R, (b * r - c * q) * inv);
+    push(mut ref R, (0.0 - (p * w - r * u)) * inv);
+    push(mut ref R, (a * w - c * u) * inv);
+    push(mut ref R, (0.0 - (a * r - c * p)) * inv);
+    push(mut ref R, (p * v - q * u) * inv);
+    push(mut ref R, (0.0 - (a * v - b * u)) * inv);
+    push(mut ref R, (a * q - b * p) * inv);
+    return R;
+}
+
+// ── Section 6: General n×n (Gauss-Jordan with partial pivoting) ───────────────
+
+// n×n matrix inverse via Gauss-Jordan on augmented [A | I].
+// Returns n×n zero matrix if A is singular (pivot < 1e-12).
+// WCET = n³ × 40 cycles.
+// STUB — full implementation in v0.1.0.
+fn mat_inv_n(A: ref Vec<f64>, n: i64) -> Vec<f64> {
+    // TODO: augmented row reduction with partial pivoting
+    return mat_zeros(n, n);
+}
+
+// Determinant via LU decomposition.
+// WCET dominated by lu_factor: n³ × 20 cycles.
+// STUB — implement after lu_factor.
+fn mat_det_n(A: ref Vec<f64>, n: i64) -> f64 {
+    // TODO: lu_factor then product of U diagonal × pivot sign
+    return 0.0;
+}
+
+// Solve Ax = b for x via Gauss-Jordan augmented [A | b].
+// Returns n-Vec zero if A is singular.
+// WCET = n³ × 40 cycles.
+// STUB — full implementation in v0.1.0.
+fn mat_solve(A: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
+    // TODO: augmented row reduction [A | b] → [I | x]
+    return mat_zeros(n, 1);
+}
+
+// ── Section 7: LU decomposition (Doolittle, partial pivoting) ─────────────────
+//
+// Packed output layout (length n²+n):
+//   [0 .. n²-1]    combined LU: L below diagonal (implicit 1s), U on/above
+//   [n² .. n²+n-1] pivot row indices as f64
+
+// Factor A = P L U. Returns packed Vec of length n²+n.
+// WCET = n³ × 20 cycles.
+// STUB — full implementation in v0.1.0.
+fn lu_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
+    // TODO: Doolittle algorithm with partial pivoting
+    let packed: Vec<f64> = mat_zeros(1, n * n + n);
+    return packed;
+}
+
+// Determinant from lu_factor output: product of U diagonal × (−1)^{swap_count}.
+// WCET = n × 8 cycles.
+// STUB — implement after lu_factor.
+fn lu_det(lu_packed: ref Vec<f64>, n: i64) -> f64 {
+    // TODO: extract U diagonal from lu_packed[0..n²], count pivot swaps
+    return 0.0;
+}
+
+// Solve Ax=b given lu_factor output. Forward sub (L), then back sub (U).
+// WCET = n² × 10 cycles.
+// STUB — full implementation in v0.1.0.
+fn lu_solve(lu_packed: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
+    // TODO: apply pivot permutation to b, forward sub Ly=Pb, back sub Ux=y
+    return mat_zeros(n, 1);
+}
+
+// ── Section 8: Cholesky decomposition (symmetric positive-definite) ───────────
+
+// Cholesky factorisation: A = L Lᵀ for symmetric positive-definite A.
+// Returns lower-triangular L (n×n flat). Returns zero matrix if A is not SPD
+// (detected when a diagonal entry of L would be sqrt of a non-positive number).
+// WCET = n³/3 × 16 cycles.
+// STUB — full implementation in v0.1.0.
+fn cholesky_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
+    // TODO: Cholesky-Banachiewicz algorithm
+    return mat_zeros(n, n);
+}
+
+// Solve Ax=b given Cholesky factor L (A=LLᵀ).
+// Forward substitution Ly=b, back substitution Lᵀx=y.
+// WCET = n² × 10 cycles.
+// STUB — full implementation in v0.1.0.
+fn cholesky_solve(L: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
+    // TODO: forward sub on L, then back sub on Lᵀ
+    return mat_zeros(n, 1);
+}
