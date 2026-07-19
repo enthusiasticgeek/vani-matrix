@@ -115,7 +115,16 @@ Packed format: `lu_factor` returns `Vec<f64>` of length `n*n + n`.
 
 ---
 
-## Future (v0.2.0, after vani-probability v0.4.0 ships)
+## Future (v0.2.0)
+
+No dependency on vani-probability: checked both repos' TODOs and found no
+technical reason for v0.2.0 to wait. If anything the dependency runs the
+other way — vani-probability's v0.4.0 (`mlr_fit`, `cov_matrix`,
+`correlation_matrix`, `pca_power_iter`) needs `mat_inv_n`, `mat_mul_rect`,
+`mat_transpose`, and Cholesky from *this* repo, all of which now ship in
+v0.1.0, and its planned `pca_power_iter` implements its own power iteration
+rather than calling into vani-matrix's eigenvalue functions. So vani-matrix
+v0.2.0 can start independently whenever it's prioritized.
 
 - [ ] `mat_eig_power(A, n, max_iter, tol)` — dominant eigenvalue/vector via power iteration
 - [ ] `mat_eig_deflate(A, n, lambda, v)` — deflate to get next eigenpair
