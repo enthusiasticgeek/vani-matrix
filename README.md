@@ -18,14 +18,14 @@ vanic add matrix
 vanic build
 ```
 
-## What's included (v0.1.0 — stubs; see TODO.md)
+## What's included (v0.1.0 — complete; see TODO.md)
 
 | Module | Functions |
 |---|---|
 | Construct | `mat_zeros`, `mat_ones`, `mat_identity`, `mat_from_diag`, `mat_copy` |
 | Access | `mat_get`, `mat_set`, `mat_row`, `mat_col` |
 | Arithmetic | `mat_add`, `mat_sub`, `mat_scale`, `mat_hadamard`, `mat_transpose` |
-| Vector ops | `vec_dot`, `vec_norm2`, `vec_outer`, `mat_norm_fro`, `mat_norm_max` |
+| Vector ops | `dot_n`, `vec_norm2`, `vec_outer`, `mat_norm_fro`, `mat_norm_max` |
 | Multiply | `mat_mul`, `mat_mul_rect`, `mat_vec_mul`, `mat_pow_n` |
 | 2×2 / 3×3 | `mat_det_2x2`, `mat_inv_2x2`, `mat_det_3x3`, `mat_inv_3x3` |
 | General n×n | `mat_det_n`, `mat_inv_n`, `mat_solve` |
