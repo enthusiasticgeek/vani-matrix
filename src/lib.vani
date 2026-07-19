@@ -14,6 +14,7 @@
 // ── Section 1: Constructors and accessors ─────────────────────────────────────
 
 // All-zero m×n matrix. WCET = rows×cols × 8 cycles.
+#[bounded_stack(bytes = 120)]
 fn mat_zeros(rows: i64, cols: i64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let M: Vec<f64> = vec(0.0);
@@ -23,6 +24,7 @@ fn mat_zeros(rows: i64, cols: i64) -> Vec<f64> {
 }
 
 // All-ones m×n matrix. WCET = rows×cols × 8 cycles.
+#[bounded_stack(bytes = 120)]
 fn mat_ones(rows: i64, cols: i64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let M: Vec<f64> = vec(1.0);
@@ -32,6 +34,7 @@ fn mat_ones(rows: i64, cols: i64) -> Vec<f64> {
 }
 
 // n×n identity matrix. WCET = n² × 12 cycles.
+#[bounded_stack(bytes = 224)]
 fn mat_identity(n: i64) -> Vec<f64> {
     let M: Vec<f64> = mat_zeros(n, n);
     let i: i64 = 0;
@@ -40,6 +43,7 @@ fn mat_identity(n: i64) -> Vec<f64> {
 }
 
 // n×n diagonal matrix from a Vec of n values. WCET = n² × 12 cycles.
+#[bounded_stack(bytes = 232)]
 fn mat_from_diag(diag: ref Vec<f64>, n: i64) -> Vec<f64> {
     let M: Vec<f64> = mat_zeros(n, n);
     let i: i64 = 0;
@@ -48,6 +52,7 @@ fn mat_from_diag(diag: ref Vec<f64>, n: i64) -> Vec<f64> {
 }
 
 // Deep copy of an m×n matrix. WCET = rows×cols × 8 cycles.
+#[bounded_stack(bytes = 128)]
 fn mat_copy(A: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let M: Vec<f64> = vec(A[0]);
@@ -56,19 +61,24 @@ fn mat_copy(A: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
     return M;
 }
 
-// Read element (i, j) from a matrix with `cols` columns. WCET ≈ 4 cycles.
+// Read element (i, j) from a matrix with `cols` columns. WCET ≈ 15 cycles.
+#[bounded_stack(bytes = 72)]
+#[wcet(cycles = 15)]
 fn mat_get(A: ref Vec<f64>, cols: i64, i: i64, j: i64) -> f64 {
     return A[i * cols + j];
 }
 
-// Write v to element (i, j). Returns 0 (unit substitute). WCET ≈ 4 cycles.
+// Write v to element (i, j). Returns 0 (unit substitute). WCET ≈ 27 cycles.
 // Note: A must be a mut ref parameter; pass it directly to set (no extra mut ref).
+#[bounded_stack(bytes = 80)]
+#[wcet(cycles = 27)]
 fn mat_set(A: mut ref Vec<f64>, cols: i64, i: i64, j: i64, v: f64) -> i64 {
     set(A, i * cols + j, v);
     return 0;
 }
 
 // Extract row i from a matrix with n_cols columns. WCET = n_cols × 12 cycles.
+#[bounded_stack(bytes = 128)]
 fn mat_row(A: ref Vec<f64>, cols: i64, i: i64) -> Vec<f64> {
     let base: i64 = i * cols;
     let row: Vec<f64> = vec(A[base]);
@@ -78,6 +88,7 @@ fn mat_row(A: ref Vec<f64>, cols: i64, i: i64) -> Vec<f64> {
 }
 
 // Extract column j from an m×n matrix. WCET = rows × 12 cycles.
+#[bounded_stack(bytes = 128)]
 fn mat_col(A: ref Vec<f64>, rows: i64, cols: i64, j: i64) -> Vec<f64> {
     let col: Vec<f64> = vec(A[j]);
     let i: i64 = 1;
@@ -88,6 +99,7 @@ fn mat_col(A: ref Vec<f64>, rows: i64, cols: i64, j: i64) -> Vec<f64> {
 // ── Section 2: Arithmetic (element-wise) ──────────────────────────────────────
 
 // Element-wise A + B. WCET = rows×cols × 10 cycles.
+#[bounded_stack(bytes = 136)]
 fn mat_add(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let C: Vec<f64> = vec(A[0] + B[0]);
@@ -97,6 +109,7 @@ fn mat_add(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
 }
 
 // Element-wise A − B. WCET = rows×cols × 10 cycles.
+#[bounded_stack(bytes = 136)]
 fn mat_sub(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let C: Vec<f64> = vec(A[0] - B[0]);
@@ -106,6 +119,7 @@ fn mat_sub(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
 }
 
 // Scalar multiply: every element of A times s. WCET = rows×cols × 8 cycles.
+#[bounded_stack(bytes = 136)]
 fn mat_scale(A: ref Vec<f64>, rows: i64, cols: i64, s: f64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let C: Vec<f64> = vec(A[0] * s);
@@ -115,6 +129,7 @@ fn mat_scale(A: ref Vec<f64>, rows: i64, cols: i64, s: f64) -> Vec<f64> {
 }
 
 // Element-wise product (Hadamard): C[k] = A[k] × B[k]. WCET = rows×cols × 8 cycles.
+#[bounded_stack(bytes = 136)]
 fn mat_hadamard(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
     let n: i64 = rows * cols;
     let C: Vec<f64> = vec(A[0] * B[0]);
@@ -125,6 +140,7 @@ fn mat_hadamard(A: ref Vec<f64>, B: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f
 
 // Transpose: rows×cols A → cols×rows result. T[j*rows+i] = A[i*cols+j].
 // WCET = rows×cols × 12 cycles.
+#[bounded_stack(bytes = 264)]
 fn mat_transpose(A: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
     let T: Vec<f64> = mat_zeros(cols, rows);
     let i: i64 = 0;
@@ -144,6 +160,7 @@ fn mat_transpose(A: ref Vec<f64>, rows: i64, cols: i64) -> Vec<f64> {
 
 // Dot product of the first n elements of x and y. WCET = n × 10 cycles.
 // Named dot_n to avoid conflict with the vāṇī compiler builtin vec_dot(x,y).
+#[bounded_stack(bytes = 96)]
 fn dot_n(x: ref Vec<f64>, y: ref Vec<f64>, n: i64) -> f64 {
     let s: f64 = 0.0;
     let i: i64 = 0;
@@ -152,12 +169,14 @@ fn dot_n(x: ref Vec<f64>, y: ref Vec<f64>, n: i64) -> f64 {
 }
 
 // Euclidean norm of the first n elements of x: sqrt(Σ xᵢ²). WCET = n × 10 + sqrt.
+#[bounded_stack(bytes = 152)]
 fn vec_norm2(x: ref Vec<f64>, n: i64) -> f64 {
     return sqrt(dot_n(x, x, n));
 }
 
 // Outer product: m-Vec x, n-Vec y → m×n matrix R[i*n+j] = x[i]*y[j].
 // WCET = m×n × 10 cycles.
+#[bounded_stack(bytes = 264)]
 fn vec_outer(x: ref Vec<f64>, y: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
     let R: Vec<f64> = mat_zeros(m, n);
     let i: i64 = 0;
@@ -173,6 +192,7 @@ fn vec_outer(x: ref Vec<f64>, y: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
 }
 
 // Frobenius norm: sqrt(Σ A[k]²). WCET = rows×cols × 12 cycles.
+#[bounded_stack(bytes = 104)]
 fn mat_norm_fro(A: ref Vec<f64>, rows: i64, cols: i64) -> f64 {
     let n: i64 = rows * cols;
     let s: f64 = 0.0;
@@ -182,6 +202,7 @@ fn mat_norm_fro(A: ref Vec<f64>, rows: i64, cols: i64) -> f64 {
 }
 
 // Max absolute entry. WCET = rows×cols × 8 cycles.
+#[bounded_stack(bytes = 112)]
 fn mat_norm_max(A: ref Vec<f64>, rows: i64, cols: i64) -> f64 {
     let n: i64 = rows * cols;
     let m: f64 = abs(A[0]);
@@ -197,6 +218,7 @@ fn mat_norm_max(A: ref Vec<f64>, rows: i64, cols: i64) -> f64 {
 // ── Section 4: Multiplication ──────────────────────────────────────────────────
 
 // Square n×n matrix multiply: C = A × B. WCET = n³ × 10 cycles.
+#[bounded_stack(bytes = 288)]
 fn mat_mul(A: ref Vec<f64>, B: ref Vec<f64>, n: i64) -> Vec<f64> {
     let C: Vec<f64> = mat_zeros(n, n);
     let i: i64 = 0;
@@ -215,6 +237,7 @@ fn mat_mul(A: ref Vec<f64>, B: ref Vec<f64>, n: i64) -> Vec<f64> {
 }
 
 // Rectangular multiply: (m×k) × (k×n) → (m×n). WCET = m×k×n × 10 cycles.
+#[bounded_stack(bytes = 304)]
 fn mat_mul_rect(A: ref Vec<f64>, B: ref Vec<f64>, m: i64, k: i64, n: i64) -> Vec<f64> {
     let C: Vec<f64> = mat_zeros(m, n);
     let i: i64 = 0;
@@ -233,6 +256,7 @@ fn mat_mul_rect(A: ref Vec<f64>, B: ref Vec<f64>, m: i64, k: i64, n: i64) -> Vec
 }
 
 // Matrix-vector multiply: (m×n) × (n-Vec) → (m-Vec). WCET = m×n × 10 cycles.
+#[bounded_stack(bytes = 160)]
 fn mat_vec_mul(A: ref Vec<f64>, x: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
     let y: Vec<f64> = vec(0.0);
     let i: i64 = 0;
@@ -248,6 +272,7 @@ fn mat_vec_mul(A: ref Vec<f64>, x: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
 
 // Integer matrix power: A^p for p ≥ 0. p=0 returns identity. O(n³ log p).
 // Repeated squaring: result accumulates base^(2^k) for each set bit of p.
+#[bounded_stack(bytes = 504)]
 fn mat_pow_n(A: ref Vec<f64>, n: i64, p: i64) -> Vec<f64> {
     if p == 0 { return mat_identity(n); }
     let result: Vec<f64> = mat_identity(n);
@@ -263,13 +288,17 @@ fn mat_pow_n(A: ref Vec<f64>, n: i64, p: i64) -> Vec<f64> {
 
 // ── Section 5: 2×2 and 3×3 closed-form ───────────────────────────────────────
 
-// Determinant of a 2×2 matrix [a b; c d]. WCET ≈ 8 cycles.
+// Determinant of a 2×2 matrix [a b; c d]. WCET ≈ 27 cycles.
+#[bounded_stack(bytes = 48)]
+#[wcet(cycles = 27)]
 fn mat_det_2x2(A: ref Vec<f64>) -> f64 {
     return A[0] * A[3] - A[1] * A[2];
 }
 
 // Inverse of a 2×2 matrix. Returns zero matrix if |det| < 1e-14.
-// WCET ≈ 32 cycles.
+// WCET ≈ 32 cycles. (No #[wcet]: calls mat_zeros, whose loop bound is a
+// runtime parameter, so the static estimator can't prove a finite bound.)
+#[bounded_stack(bytes = 248)]
 fn mat_inv_2x2(A: ref Vec<f64>) -> Vec<f64> {
     let d: f64 = mat_det_2x2(A);
     if abs(d) < 1.0e-14 { return mat_zeros(2, 2); }
@@ -282,7 +311,9 @@ fn mat_inv_2x2(A: ref Vec<f64>) -> Vec<f64> {
 }
 
 // Determinant of a 3×3 matrix via cofactor expansion along row 0.
-// WCET ≈ 40 cycles.
+// WCET ≈ 102 cycles.
+#[bounded_stack(bytes = 120)]
+#[wcet(cycles = 102)]
 fn mat_det_3x3(A: ref Vec<f64>) -> f64 {
     let a: f64 = A[0]; let b: f64 = A[1]; let c: f64 = A[2];
     let d: f64 = A[3]; let e: f64 = A[4]; let f: f64 = A[5];
@@ -291,7 +322,9 @@ fn mat_det_3x3(A: ref Vec<f64>) -> f64 {
 }
 
 // Inverse of a 3×3 matrix via adjugate / det. Returns zeros if |det| < 1e-14.
-// WCET ≈ 160 cycles.
+// WCET ≈ 160 cycles. (No #[wcet]: calls mat_zeros, whose loop bound is a
+// runtime parameter, so the static estimator can't prove a finite bound.)
+#[bounded_stack(bytes = 320)]
 fn mat_inv_3x3(A: ref Vec<f64>) -> Vec<f64> {
     let d: f64 = mat_det_3x3(A);
     if abs(d) < 1.0e-14 { return mat_zeros(3, 3); }
@@ -316,6 +349,7 @@ fn mat_inv_3x3(A: ref Vec<f64>) -> Vec<f64> {
 // n×n matrix inverse via Gauss-Jordan on augmented [A | I].
 // Returns n×n zero matrix if A is singular (pivot < 1e-12).
 // WCET = n³ × 40 cycles.
+#[bounded_stack(bytes = 496)]
 fn mat_inv_n(A: ref Vec<f64>, n: i64) -> Vec<f64> {
     let w: i64 = 2 * n;
     let aug: Vec<f64> = mat_zeros(n, w);
@@ -380,6 +414,7 @@ fn mat_inv_n(A: ref Vec<f64>, n: i64) -> Vec<f64> {
 
 // Determinant via LU decomposition.
 // WCET dominated by lu_factor: n³ × 20 cycles.
+#[bounded_stack(bytes = 512)]
 fn mat_det_n(A: ref Vec<f64>, n: i64) -> f64 {
     let packed: Vec<f64> = lu_factor(A, n);
     return lu_det(ref packed, n);
@@ -388,6 +423,7 @@ fn mat_det_n(A: ref Vec<f64>, n: i64) -> f64 {
 // Solve Ax = b for x via Gauss-Jordan augmented [A | b].
 // Returns n-Vec zero if A is singular.
 // WCET = n³ × 40 cycles.
+#[bounded_stack(bytes = 488)]
 fn mat_solve(A: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
     let w: i64 = n + 1;
     let aug: Vec<f64> = mat_zeros(n, w);
@@ -455,6 +491,7 @@ fn mat_solve(A: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
 // Factor A = P L U (Doolittle, partial pivoting). Returns packed Vec of length n²+n:
 // [0..n²-1] combined LU, [n²..n²+n-1] pivot row index used at each step k.
 // WCET = n³ × 20 cycles.
+#[bounded_stack(bytes = 432)]
 fn lu_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
     let LU: Vec<f64> = mat_copy(A, n, n);
     let piv: Vec<f64> = mat_zeros(1, n);
@@ -506,6 +543,7 @@ fn lu_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
 
 // Determinant from lu_factor output: product of U diagonal × (−1)^{swap_count}.
 // WCET = n × 8 cycles.
+#[bounded_stack(bytes = 136)]
 fn lu_det(lu_packed: ref Vec<f64>, n: i64) -> f64 {
     let d: f64 = 1.0;
     let i: i64 = 0;
@@ -524,6 +562,7 @@ fn lu_det(lu_packed: ref Vec<f64>, n: i64) -> f64 {
 
 // Solve Ax=b given lu_factor output. Applies pivots, forward sub (L), back sub (U).
 // WCET = n² × 10 cycles.
+#[bounded_stack(bytes = 384)]
 fn lu_solve(lu_packed: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
     let y: Vec<f64> = mat_copy(b, 1, n);
     let k: i64 = 0;
@@ -564,6 +603,7 @@ fn lu_solve(lu_packed: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
 // positive-definite A. Returns lower-triangular L (n×n flat). Returns zero
 // matrix if A is not SPD (a diagonal term of L would be sqrt of a
 // non-positive number). WCET = n³/3 × 16 cycles.
+#[bounded_stack(bytes = 304)]
 fn cholesky_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
     let L: Vec<f64> = mat_zeros(n, n);
     let i: i64 = 0;
@@ -588,6 +628,7 @@ fn cholesky_factor(A: ref Vec<f64>, n: i64) -> Vec<f64> {
 
 // Solve Ax=b given Cholesky factor L (A=LLᵀ).
 // Forward substitution Ly=b, back substitution Lᵀx=y. WCET = n² × 10 cycles.
+#[bounded_stack(bytes = 352)]
 fn cholesky_solve(L: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
     let y: Vec<f64> = mat_copy(b, 1, n);
     let i: i64 = 0;
