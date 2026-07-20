@@ -10,7 +10,7 @@ All functions take explicit dimension arguments so no metadata is hidden inside 
 ```toml
 # vani.toml
 [deps]
-matrix = { registry = "kosh", version = "^0.1" }
+matrix = { registry = "kosh", version = "^0.2" }
 ```
 
 ```sh
@@ -18,7 +18,7 @@ vanic add matrix
 vanic build
 ```
 
-## What's included (v0.1.0 — complete; see TODO.md)
+## What's included (v0.2.0 — complete; see TODO.md)
 
 | Module | Functions |
 |---|---|
@@ -31,6 +31,8 @@ vanic build
 | General n×n | `mat_det_n`, `mat_inv_n`, `mat_solve` |
 | LU decomp | `lu_factor`, `lu_det`, `lu_solve` |
 | Cholesky | `cholesky_factor`, `cholesky_solve` |
+| Eigenvalues | `mat_eig_power`, `mat_eig_deflate`, `mat_cond` |
+| QR / SVD | `mat_qr_householder`, `mat_svd_bidiag` |
 
 ## Matrix encoding
 
@@ -50,6 +52,19 @@ All functions index as `A[i * cols + j]` for row i, column j.
 - Elements `n*n .. n*n+n − 1`: pivot row indices stored as `f64`
 
 `lu_solve` and `lu_det` expect this packed format directly.
+
+## Eigenvalue / QR / SVD packing conventions
+
+`mat_eig_power(A, n, max_iter, tol)` returns a `Vec<f64>` of length `n+1`: element 0 is
+the eigenvalue, elements `1..n+1` are the unit eigenvector.
+
+`mat_qr_householder(A, m, n)` returns `Q` (`m*m` elements) followed by `R` (`m*n`
+elements), concatenated.
+
+`mat_svd_bidiag(A, m, n)` returns `U` (`m*m`) followed by `B` (`m*n`, bidiagonal)
+followed by `V` (`n*n`), concatenated. This is the bidiagonalization *step* toward a
+full SVD (`A = U B Vᵀ`), not a full SVD solver -- diagonalizing `B` further needs an
+iterative implicit-shift QR sweep, which is out of scope for v0.2.0.
 
 ## What this library does NOT provide
 

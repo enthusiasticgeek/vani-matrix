@@ -651,3 +651,350 @@ fn cholesky_solve(L: ref Vec<f64>, b: ref Vec<f64>, n: i64) -> Vec<f64> {
     }
     return x;
 }
+
+// ── Section 9: Eigenvalues, condition number, QR, SVD bidiagonalization (v0.2.0) ──
+
+// Dominant eigenvalue/eigenvector of a (typically symmetric) matrix via power
+// iteration from a uniform start. Returns a packed Vec of length n+1: element 0
+// is the eigenvalue (via the Rayleigh quotient, so the sign is correct even
+// though the iterate itself oscillates in sign when the dominant eigenvalue is
+// negative), elements [1..n+1) are the unit eigenvector. WCET = max_iter x n^2 x 12 cycles.
+#[bounded_stack(bytes = 504)]
+fn mat_eig_power(A: ref Vec<f64>, n: i64, max_iter: i64, tol: f64) -> Vec<f64> {
+    // Start from [1, 2, ..., n] normalized rather than a uniform vector --
+    // a uniform start can land exactly on a non-dominant eigenvector of a
+    // symmetric matrix (this happens in practice after mat_eig_deflate on a
+    // symmetric input), which stalls convergence to the wrong eigenvalue.
+    let v: Vec<f64> = vec();
+    let i: i64 = 0;
+    while i < n {
+        push(mut ref v, (i + 1) as f64);
+        i = i + 1;
+    }
+    let v0_norm: f64 = vec_norm2(ref v, n);
+    let i0: i64 = 0;
+    while i0 < n {
+        set(mut ref v, i0, v[i0] / v0_norm);
+        i0 = i0 + 1;
+    }
+    let iter: i64 = 0;
+    while iter < max_iter {
+        let w: Vec<f64> = mat_vec_mul(A, ref v, n, n);
+        let norm: f64 = vec_norm2(ref w, n);
+        if norm < 1.0e-300 { break; }
+        let j: i64 = 0;
+        let diff_same: f64 = 0.0;
+        let diff_flip: f64 = 0.0;
+        while j < n {
+            let nv: f64 = w[j] / norm;
+            let d1: f64 = nv - v[j];
+            let d2: f64 = nv + v[j];
+            diff_same = diff_same + d1 * d1;
+            diff_flip = diff_flip + d2 * d2;
+            set(mut ref v, j, nv);
+            j = j + 1;
+        }
+        // Handle oscillation for negative dominant eigenvalues: converged if
+        // the vector settles to the same direction OR its negation.
+        if sqrt(diff_same) < tol || sqrt(diff_flip) < tol { break; }
+        iter = iter + 1;
+    }
+    let Av: Vec<f64> = mat_vec_mul(A, ref v, n, n);
+    let lambda: f64 = dot_n(ref Av, ref v, n);
+    let out: Vec<f64> = vec(lambda);
+    let k: i64 = 0;
+    while k < n {
+        push(mut ref out, v[k]);
+        k = k + 1;
+    }
+    return out;
+}
+
+// Deflate a matrix by removing the variance already captured by eigenpair
+// (lambda, v) (v assumed a unit eigenvector): A' = A - lambda v v^T. Run
+// mat_eig_power again on the result to get the next eigenpair. WCET = n^2 x 12 cycles.
+#[bounded_stack(bytes = 416)]
+fn mat_eig_deflate(A: ref Vec<f64>, n: i64, lambda: f64, v: ref Vec<f64>) -> Vec<f64> {
+    let outer: Vec<f64> = vec_outer(v, v, n, n);
+    let out: Vec<f64> = vec();
+    let i: i64 = 0;
+    while i < n * n {
+        push(mut ref out, A[i] - lambda * outer[i]);
+        i = i + 1;
+    }
+    return out;
+}
+
+// Condition number via power iteration on A and on A^-1:
+// cond(A) = |lambda_max(A)| / |lambda_min(A)| = |lambda_max(A)| x |lambda_max(A^-1)|.
+// Assumes a diagonalizable (typically symmetric) A with real eigenvalues -- for
+// general matrices the true condition number uses singular values, not
+// eigenvalues. Returns f64_inf() if A is (numerically) singular.
+#[bounded_stack(bytes = 672)]
+fn mat_cond(A: ref Vec<f64>, n: i64) -> f64 {
+    let max_iter: i64 = 500;
+    let tol: f64 = 1.0e-10;
+    let eig_max: Vec<f64> = mat_eig_power(A, n, max_iter, tol);
+    let A_inv: Vec<f64> = mat_inv_n(A, n);
+    let eig_min_inv: Vec<f64> = mat_eig_power(ref A_inv, n, max_iter, tol);
+    let lambda_max: f64 = abs(eig_max[0]);
+    let lambda_min_inv: f64 = abs(eig_min_inv[0]);
+    if lambda_min_inv < 1.0e-300 { return f64_inf(); }
+    return lambda_max * lambda_min_inv;
+}
+
+// QR decomposition via Householder reflectors: A (m x n, m >= n typical) -> Q
+// (m x m orthogonal), R (m x n upper triangular), A = QR. Packed return: Q
+// (m*m elements) followed by R (m*n elements). Validated against the
+// canonical 3x3 Householder QR example (Q orthogonal, R upper triangular,
+// QR reconstructs A exactly) -- the sign of the last reflector's column can
+// differ from other references' choice of convention; both are valid QR
+// factorizations of the same A. WCET ~ n^2(3m-n)/3 x 20 cycles (standard
+// Householder QR operation count).
+#[bounded_stack(bytes = 744)]
+fn mat_qr_householder(A: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
+    let R: Vec<f64> = mat_copy(A, m, n);
+    let Q: Vec<f64> = mat_identity(m);
+
+    let k_max: i64 = m;
+    if n < m { k_max = n; }
+
+    let k: i64 = 0;
+    while k < k_max {
+        let sub_len: i64 = m - k;
+        if sub_len > 1 {
+            let x: Vec<f64> = vec();
+            let i: i64 = k;
+            while i < m {
+                push(mut ref x, R[i * n + k]);
+                i = i + 1;
+            }
+            let x_norm: f64 = vec_norm2(ref x, sub_len);
+            if x_norm > 1.0e-14 {
+                let sign_x0: f64 = 1.0;
+                if x[0] < 0.0 { sign_x0 = 0.0 - 1.0; }
+                let alpha: f64 = (0.0 - sign_x0) * x_norm;
+                let v: Vec<f64> = vec();
+                let j: i64 = 0;
+                while j < sub_len {
+                    let vj: f64 = x[j];
+                    if j == 0 { vj = vj - alpha; }
+                    push(mut ref v, vj);
+                    j = j + 1;
+                }
+                let v_norm: f64 = vec_norm2(ref v, sub_len);
+                if v_norm > 1.0e-14 {
+                    let jj: i64 = 0;
+                    while jj < sub_len {
+                        set(mut ref v, jj, v[jj] / v_norm);
+                        jj = jj + 1;
+                    }
+                    // Apply H = I - 2vv^T to R[k:m, k:n] from the left.
+                    let c: i64 = k;
+                    while c < n {
+                        let d: f64 = 0.0;
+                        let r: i64 = 0;
+                        while r < sub_len {
+                            d = d + v[r] * R[(k + r) * n + c];
+                            r = r + 1;
+                        }
+                        let r2: i64 = 0;
+                        while r2 < sub_len {
+                            let idx: i64 = (k + r2) * n + c;
+                            set(mut ref R, idx, R[idx] - 2.0 * d * v[r2]);
+                            r2 = r2 + 1;
+                        }
+                        c = c + 1;
+                    }
+                    // Accumulate Q = Q * H (apply H to Q's columns [k:m) for every row).
+                    let row: i64 = 0;
+                    while row < m {
+                        let d2: f64 = 0.0;
+                        let s: i64 = 0;
+                        while s < sub_len {
+                            d2 = d2 + Q[row * m + (k + s)] * v[s];
+                            s = s + 1;
+                        }
+                        let s2: i64 = 0;
+                        while s2 < sub_len {
+                            let idx2: i64 = row * m + (k + s2);
+                            set(mut ref Q, idx2, Q[idx2] - 2.0 * d2 * v[s2]);
+                            s2 = s2 + 1;
+                        }
+                        row = row + 1;
+                    }
+                }
+            }
+        }
+        k = k + 1;
+    }
+
+    let out: Vec<f64> = vec();
+    let ii: i64 = 0;
+    while ii < m * m { push(mut ref out, Q[ii]); ii = ii + 1; }
+    let jj2: i64 = 0;
+    while jj2 < m * n { push(mut ref out, R[jj2]); jj2 = jj2 + 1; }
+    return out;
+}
+
+// Golub-Kahan bidiagonalization: A (m x n, m >= n) -> U (m x m orthogonal), B
+// (m x n bidiagonal -- nonzero only on the diagonal and first superdiagonal),
+// V (n x n orthogonal), such that A = U B V^T. This is the bidiagonalization
+// STEP toward a full SVD, not a full SVD solver -- diagonalizing B further
+// requires an iterative (implicit-shift QR) sweep on top of this, which is
+// intentionally out of scope here. Packed return: U (m*m) ++ B (m*n) ++ V (n*n).
+// Validated via reconstruction (U B V^T = A) and orthogonality (U^T U = I,
+// V^T V = I) on a 4x3 example. WCET: two interleaved Householder passes,
+// O(mn^2) overall.
+#[bounded_stack(bytes = 1072)]
+fn mat_svd_bidiag(A: ref Vec<f64>, m: i64, n: i64) -> Vec<f64> {
+    let B: Vec<f64> = mat_copy(A, m, n);
+    let U: Vec<f64> = mat_identity(m);
+    let V: Vec<f64> = mat_identity(n);
+
+    let k: i64 = 0;
+    while k < n {
+        // --- Left reflector: zero B[k+1:m, k] ---
+        let sub_len: i64 = m - k;
+        if sub_len > 1 {
+            let x: Vec<f64> = vec();
+            let i: i64 = k;
+            while i < m {
+                push(mut ref x, B[i * n + k]);
+                i = i + 1;
+            }
+            let x_norm: f64 = vec_norm2(ref x, sub_len);
+            if x_norm > 1.0e-14 {
+                let sign_x0: f64 = 1.0;
+                if x[0] < 0.0 { sign_x0 = 0.0 - 1.0; }
+                let alpha: f64 = (0.0 - sign_x0) * x_norm;
+                let v: Vec<f64> = vec();
+                let j: i64 = 0;
+                while j < sub_len {
+                    let vj: f64 = x[j];
+                    if j == 0 { vj = vj - alpha; }
+                    push(mut ref v, vj);
+                    j = j + 1;
+                }
+                let v_norm: f64 = vec_norm2(ref v, sub_len);
+                if v_norm > 1.0e-14 {
+                    let jj: i64 = 0;
+                    while jj < sub_len {
+                        set(mut ref v, jj, v[jj] / v_norm);
+                        jj = jj + 1;
+                    }
+                    let c: i64 = k;
+                    while c < n {
+                        let d: f64 = 0.0;
+                        let r: i64 = 0;
+                        while r < sub_len {
+                            d = d + v[r] * B[(k + r) * n + c];
+                            r = r + 1;
+                        }
+                        let r2: i64 = 0;
+                        while r2 < sub_len {
+                            let idx: i64 = (k + r2) * n + c;
+                            set(mut ref B, idx, B[idx] - 2.0 * d * v[r2]);
+                            r2 = r2 + 1;
+                        }
+                        c = c + 1;
+                    }
+                    let row: i64 = 0;
+                    while row < m {
+                        let d2: f64 = 0.0;
+                        let s: i64 = 0;
+                        while s < sub_len {
+                            d2 = d2 + U[row * m + (k + s)] * v[s];
+                            s = s + 1;
+                        }
+                        let s2: i64 = 0;
+                        while s2 < sub_len {
+                            let idx2: i64 = row * m + (k + s2);
+                            set(mut ref U, idx2, U[idx2] - 2.0 * d2 * v[s2]);
+                            s2 = s2 + 1;
+                        }
+                        row = row + 1;
+                    }
+                }
+            }
+        }
+
+        // --- Right reflector: zero B[k, k+2:n] ---
+        let rsub_len: i64 = n - k - 1;
+        if rsub_len > 1 {
+            let xr: Vec<f64> = vec();
+            let jc: i64 = k + 1;
+            while jc < n {
+                push(mut ref xr, B[k * n + jc]);
+                jc = jc + 1;
+            }
+            let xr_norm: f64 = vec_norm2(ref xr, rsub_len);
+            if xr_norm > 1.0e-14 {
+                let sign_r0: f64 = 1.0;
+                if xr[0] < 0.0 { sign_r0 = 0.0 - 1.0; }
+                let ralpha: f64 = (0.0 - sign_r0) * xr_norm;
+                let vr: Vec<f64> = vec();
+                let jr: i64 = 0;
+                while jr < rsub_len {
+                    let vrj: f64 = xr[jr];
+                    if jr == 0 { vrj = vrj - ralpha; }
+                    push(mut ref vr, vrj);
+                    jr = jr + 1;
+                }
+                let vr_norm: f64 = vec_norm2(ref vr, rsub_len);
+                if vr_norm > 1.0e-14 {
+                    let jjr: i64 = 0;
+                    while jjr < rsub_len {
+                        set(mut ref vr, jjr, vr[jjr] / vr_norm);
+                        jjr = jjr + 1;
+                    }
+                    // Apply to B: for every row r in [k:m), update B[r, k+1:n].
+                    let r3: i64 = k;
+                    while r3 < m {
+                        let d3: f64 = 0.0;
+                        let c3: i64 = 0;
+                        while c3 < rsub_len {
+                            d3 = d3 + B[r3 * n + (k + 1 + c3)] * vr[c3];
+                            c3 = c3 + 1;
+                        }
+                        let c4: i64 = 0;
+                        while c4 < rsub_len {
+                            let idx3: i64 = r3 * n + (k + 1 + c4);
+                            set(mut ref B, idx3, B[idx3] - 2.0 * d3 * vr[c4]);
+                            c4 = c4 + 1;
+                        }
+                        r3 = r3 + 1;
+                    }
+                    // Accumulate V: for every row of V, update V[row, k+1:n].
+                    let row2: i64 = 0;
+                    while row2 < n {
+                        let d4: f64 = 0.0;
+                        let s3: i64 = 0;
+                        while s3 < rsub_len {
+                            d4 = d4 + V[row2 * n + (k + 1 + s3)] * vr[s3];
+                            s3 = s3 + 1;
+                        }
+                        let s4: i64 = 0;
+                        while s4 < rsub_len {
+                            let idx4: i64 = row2 * n + (k + 1 + s4);
+                            set(mut ref V, idx4, V[idx4] - 2.0 * d4 * vr[s4]);
+                            s4 = s4 + 1;
+                        }
+                        row2 = row2 + 1;
+                    }
+                }
+            }
+        }
+
+        k = k + 1;
+    }
+
+    let out: Vec<f64> = vec();
+    let a0: i64 = 0;
+    while a0 < m * m { push(mut ref out, U[a0]); a0 = a0 + 1; }
+    let a1: i64 = 0;
+    while a1 < m * n { push(mut ref out, B[a1]); a1 = a1 + 1; }
+    let a2: i64 = 0;
+    while a2 < n * n { push(mut ref out, V[a2]); a2 = a2 + 1; }
+    return out;
+}

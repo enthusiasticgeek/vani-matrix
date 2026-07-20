@@ -88,7 +88,11 @@ Packed format: `lu_factor` returns `Vec<f64>` of length `n*n + n`.
 
 ## Safety / WCET annotations
 
-- [x] `#[bounded_stack(bytes=N)]` on all functions after `vanic stack-depth` run
+- [x] `#[bounded_stack(bytes=N)]` on all v0.1.0 functions after `vanic stack-depth` run
+- [x] `#[bounded_stack(bytes=N)]` on all v0.2.0 functions (budgets set to `vanic check`'s
+      exact reported worst-case, not hand estimates -- the Householder QR and SVD
+      bidiagonalization functions needed the largest budgets in the library so far,
+      up to 1072 bytes for `mat_svd_bidiag`)
 - [x] `#[wcet(cycles=N)]` on closed-form leaf functions (mat_get, mat_set, mat_det_2x2,
       mat_det_3x3). `mat_inv_2x2`/`mat_inv_3x3` do NOT get `#[wcet]`: they call
       `mat_zeros`, whose loop bound is a runtime parameter, so the compiler's static
@@ -115,7 +119,7 @@ Packed format: `lu_factor` returns `Vec<f64>` of length `n*n + n`.
 
 ---
 
-## Future (v0.2.0)
+## v0.2.0 -- Implemented ✓
 
 No dependency on vani-probability: checked both repos' TODOs and found no
 technical reason for v0.2.0 to wait. If anything the dependency runs the
@@ -126,8 +130,27 @@ v0.1.0, and its planned `pca_power_iter` implements its own power iteration
 rather than calling into vani-matrix's eigenvalue functions. So vani-matrix
 v0.2.0 can start independently whenever it's prioritized.
 
-- [ ] `mat_eig_power(A, n, max_iter, tol)` — dominant eigenvalue/vector via power iteration
-- [ ] `mat_eig_deflate(A, n, lambda, v)` — deflate to get next eigenpair
-- [ ] `mat_qr_householder(A, m, n)` — QR decomposition (Householder reflectors)
-- [ ] `mat_svd_bidiag(A, m, n)` — bidiagonalisation step for SVD
-- [ ] `mat_cond(A, n)` — condition number (max eigenvalue / min eigenvalue via power + inverse power)
+- [x] `mat_eig_power(A, n, max_iter, tol)` — dominant eigenvalue/vector via power iteration
+- [x] `mat_eig_deflate(A, n, lambda, v)` — deflate to get next eigenpair
+- [x] `mat_qr_householder(A, m, n)` — QR decomposition (Householder reflectors)
+- [x] `mat_svd_bidiag(A, m, n)` — bidiagonalisation step for SVD (not a full SVD solver --
+      diagonalizing the resulting bidiagonal form needs an iterative implicit-shift QR
+      sweep, intentionally out of scope here)
+- [x] `mat_cond(A, n)` — condition number (max eigenvalue / min eigenvalue via power + inverse power)
+- [x] `tests/test_eig.vani` — positive/negative/symmetric eigenvalues, deflation, cond
+- [x] `tests/test_qr_svd.vani` — QR against the canonical Wikipedia 3×3 example (validated
+      via orthogonality + reconstruction, not exact sign match), non-square QR, 4×3 SVD
+      bidiagonalization (orthogonality + reconstruction)
+- [x] `examples/eigen_qr_svd_demo.vani`
+
+**Bug found and fixed during validation**: `mat_eig_power`'s original uniform starting
+vector (`[1/√n, ..., 1/√n]`) can land exactly on a *non-dominant* eigenvector of a
+symmetric matrix by construction — this reliably happened after `mat_eig_deflate` on a
+symmetric input (deflating `[[2,1],[1,2]]`'s dominant eigenpair leaves a matrix whose
+zero eigenvalue's eigenvector is exactly the old uniform start), silently converging to
+the wrong eigenvalue, and the same degeneracy independently corrupted `mat_cond` (which
+calls `mat_eig_power` on `A⁻¹` internally). Fixed by starting from a normalized
+`[1, 2, ..., n]` vector instead, which breaks the symmetry that caused it. Caught by
+testing the eigen/QR/SVD example end-to-end rather than only running the unit tests
+that happened not to exercise this exact case — now locked in as a dedicated
+regression test in `test_eig.vani`.
