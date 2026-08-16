@@ -1,33 +1,168 @@
 {
-  "why_use_this": "This is the linear-algebra foundation nearly every other numeric package in the vani-* ecosystem builds on -- [vani-algebra](https://github.com/enthusiasticgeek/vani-algebra)'s eigenvalue-based root finder, [vani-pde](https://github.com/enthusiasticgeek/vani-pde)'s elliptic solvers, [vani-optimize](https://github.com/enthusiasticgeek/vani-optimize)'s Newton-step machinery, and [vani-tensor](https://github.com/enthusiasticgeek/vani-tensor)'s contraction all call into this package rather than reimplementing linear algebra themselves. Reach for it directly whenever your problem is naturally a matrix: solving a linear system \\( Ax=b \\), finding a determinant/inverse/eigenvalue, or just doing matrix arithmetic. Matrices are flat row-major `Vec<f64>` with explicit dimension arguments -- no hidden metadata, no `Matrix` struct -- so a matrix from this package is byte-for-byte interchangeable with a rank-2 [vani-tensor](https://github.com/enthusiasticgeek/vani-tensor) tensor. For small fixed sizes (2x2, 3x3) there are direct closed-form functions that avoid the overhead and numerical cost of the general n×n path; use those when you know your size in advance."
+  "why_use_this": "This is the linear-algebra foundation nearly every other numeric package in the vani-* ecosystem builds on -- [vani-algebra](https://github.com/enthusiasticgeek/vani-algebra)'s eigenvalue-based root finder, [vani-pde](https://github.com/enthusiasticgeek/vani-pde)'s elliptic solvers, [vani-optimize](https://github.com/enthusiasticgeek/vani-optimize)'s Newton-step machinery, and [vani-tensor](https://github.com/enthusiasticgeek/vani-tensor)'s contraction all call into this package rather than reimplementing linear algebra themselves. Reach for it directly whenever your problem is naturally a matrix: solving a linear system \\( Ax=b \\), finding a determinant/inverse/eigenvalue, or just doing matrix arithmetic. Matrices are flat row-major `Vec<f64>` with explicit dimension arguments -- no hidden metadata, no `Matrix` struct -- so a matrix from this package is byte-for-byte interchangeable with a rank-2 [vani-tensor](https://github.com/enthusiasticgeek/vani-tensor) tensor. For small fixed sizes (2x2, 3x3) there are direct closed-form functions that avoid the overhead and numerical cost of the general n×n path; use those when you know your size in advance.\n\nTwo small running matrices thread through the notes below: \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\) (chosen because it factors into clean integers) for the determinant/inverse/factorization cluster, and \\(M_2=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}\\) (chosen for its clean eigenvalues, 1 and 3) for the eigenvalue cluster."
   ,
   "math_notes": {
-    "mat_transpose": "\\( (A^T)_{ij} = A_{ji} \\) -- swaps rows and columns.",
-    "dot_n": "\\( x \\cdot y = \\sum_{i=1}^n x_i y_i \\) -- the standard vector dot product (named `dot_n` rather than `dot` to avoid colliding with the compiler's own builtin `vec_dot`).",
-    "vec_norm2": "\\( \\lVert x \\rVert_2 = \\sqrt{\\sum_{i=1}^n x_i^2} \\) -- the Euclidean (L2) norm.",
-    "vec_outer": "\\( (x \\otimes y)_{ij} = x_i y_j \\) -- the outer product, an \\( m \\times n \\) rank-1 matrix from an \\( m \\)-vector and an \\( n \\)-vector.",
-    "mat_norm_fro": "\\( \\lVert A \\rVert_F = \\sqrt{\\sum_{i,j} A_{ij}^2} \\) -- the Frobenius norm, the matrix analog of the vector L2 norm (treats the matrix as one long vector of entries).",
-    "mat_norm_max": "\\( \\max_{i,j} |A_{ij}| \\) -- the largest absolute entry, the max-norm.",
-    "mat_mul": "\\( C = AB \\) for square \\( n\\times n \\) matrices: \\( C_{ij} = \\sum_{k=1}^n A_{ik}B_{kj} \\), the standard triple-loop matrix product.",
-    "mat_mul_rect": "\\( C = AB \\) for rectangular \\( A \\) (\\( m\\times k \\)) and \\( B \\) (\\( k\\times n \\)), giving an \\( m\\times n \\) result: \\( C_{ij} = \\sum_{l=1}^k A_{il}B_{lj} \\) -- the general (non-square) form `mat_mul` specializes and [vani-tensor](https://github.com/enthusiasticgeek/vani-tensor)'s `tensor_contract_last_first` reuses directly.",
-    "mat_vec_mul": "\\( y = Ax \\): \\( y_i = \\sum_{j=1}^n A_{ij}x_j \\) -- matrix-vector product, the \\( n=1 \\)-column special case of `mat_mul_rect`.",
-    "mat_pow_n": "\\( A^p \\) for a non-negative integer \\( p \\), via exponentiation by repeated squaring (\\( O(\\log p) \\) matrix multiplications instead of \\( p-1 \\)): accumulate the result from \\( A^{2^k} \\) for each set bit \\( k \\) of \\( p \\)'s binary representation.",
-    "mat_det_2x2": "\\( \\det\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix} = ad - bc \\).",
-    "mat_inv_2x2": "\\( \\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}^{-1} = \\dfrac{1}{ad-bc}\\begin{pmatrix}d&-b\\\\-c&a\\end{pmatrix} \\) -- the direct closed-form adjugate-over-determinant formula, undefined when the determinant is 0.",
-    "mat_det_3x3": "The 3x3 determinant via cofactor expansion along the first row: \\( \\det A = a(ei-fh) - b(di-fg) + c(dh-eg) \\) for \\( A = \\begin{pmatrix}a&b&c\\\\d&e&f\\\\g&h&i\\end{pmatrix} \\).",
-    "mat_inv_3x3": "The 3x3 matrix inverse via the adjugate (matrix of cofactors, transposed) divided by `mat_det_3x3`'s determinant -- the direct closed-form generalization of `mat_inv_2x2`, still undefined when singular.",
-    "mat_det_n": "The general \\( n \\times n \\) determinant, computed as the product of `lu_factor`'s diagonal pivots (with a sign flip per row swap performed during pivoting) rather than cofactor expansion -- cofactor expansion is \\( O(n!) \\); LU-based determinant is \\( O(n^3) \\), the same cost as the factorization itself.",
-    "mat_inv_n": "The general \\( n \\times n \\) matrix inverse, computed by solving \\( AX = I \\) column-by-column (each column of the identity matrix is a right-hand side for `mat_solve`) -- \\( n \\) linear solves rather than a closed-form adjugate formula, which is only practical at the 2x2/3x3 scale `mat_inv_2x2`/`mat_inv_3x3` target.",
-    "mat_solve": "Solves the linear system \\( Ax = b \\) for \\( x \\), via LU decomposition with partial pivoting (`lu_factor` then `lu_solve`) rather than computing \\( A^{-1} \\) explicitly and multiplying -- the standard, numerically preferred way to solve a single linear system.",
-    "lu_factor": "LU decomposition with partial pivoting: \\( PA = LU \\), where \\( L \\) is unit-lower-triangular (1s on the diagonal, implicit -- not stored), \\( U \\) is upper-triangular, and \\( P \\) is a row-permutation recorded as pivot indices (not a full permutation matrix) -- packed into one `Vec<f64>` per the README's packing convention.",
-    "lu_det": "\\( \\det A = \\pm\\prod_{i=1}^n U_{ii} \\) -- the product of \\( U \\)'s diagonal entries from the packed LU factorization, with the sign flipped once per row swap `lu_factor` performed (tracked via the pivot record), since each row swap flips the determinant's sign.",
-    "lu_solve": "Given \\( PA=LU \\) (from `lu_factor`) and the same permutation applied to \\( b \\), solves \\( Ax=b \\) in two triangular passes: forward substitution \\( Ly=Pb \\), then back substitution \\( Ux=y \\) -- each \\( O(n^2) \\), far cheaper than the \\( O(n^3) \\) factorization itself, which is the whole point of factoring once and solving against multiple right-hand sides cheaply.",
-    "cholesky_factor": "For a symmetric positive-definite \\( A \\): \\( A = LL^T \\), where \\( L \\) is lower-triangular -- roughly half the work of general LU factorization by exploiting symmetry, but only valid when \\( A \\) is genuinely positive-definite (fails, rather than silently producing garbage, if a diagonal pivot ever comes out non-positive during factorization).",
-    "cholesky_solve": "Given \\( A=LL^T \\) (from `cholesky_factor`), solves \\( Ax=b \\) via forward substitution \\( Ly=b \\) then back substitution \\( L^Tx=y \\) -- the Cholesky analog of `lu_solve`.",
-    "mat_eig_power": "The power iteration method for the DOMINANT eigenvalue/eigenvector: repeatedly apply \\( v_{k+1} = Av_k / \\lVert Av_k \\rVert \\) starting from an arbitrary vector; \\( v_k \\) converges to the eigenvector of the eigenvalue with largest absolute value (assuming one exists and is unique), and the Rayleigh quotient \\( v_k^T A v_k \\) converges to that eigenvalue. Converges to a REAL eigenvalue only -- has no mechanism to detect a complex-conjugate dominant pair (see [vani-algebra](https://github.com/enthusiasticgeek/vani-algebra)'s README for how this limits its own root-finder built on top of this function).",
-    "mat_eig_deflate": "Given a found eigenpair \\( (\\lambda, v) \\) (unit \\( v \\)), returns \\( A - \\lambda v v^T \\) -- removes \\( \\lambda \\)'s contribution so a second call to `mat_eig_power` on the result converges to the NEXT-largest eigenvalue instead of re-finding the same one. Requires \\( A \\) symmetric with orthonormal eigenvectors for this rank-1 deflation to be valid -- see [vani-algebra](https://github.com/enthusiasticgeek/vani-algebra)'s README for why its companion-matrix use case deliberately does NOT use this (a companion matrix isn't symmetric, so this trick would silently corrupt every root after the first).",
-    "mat_cond": "The 2-norm condition number \\( \\kappa(A) = \\lambda_{\\max}/\\lambda_{\\min} \\) (ratio of the largest to smallest eigenvalue magnitude, via repeated `mat_eig_power`/`mat_eig_deflate`) -- large \\( \\kappa(A) \\) means `mat_solve`'s answer is highly sensitive to small perturbations in \\( A \\) or \\( b \\); returns `f64_inf()` for a (numerically) singular matrix.",
-    "mat_qr_householder": "QR decomposition via Householder reflections: \\( A = QR \\), where \\( Q \\) is orthogonal (\\( Q^TQ=I \\)) and \\( R \\) is upper-triangular -- each Householder reflection zeroes out the entries below one diagonal pivot, applied successively.",
-    "mat_svd_bidiag": "The bidiagonalization step toward a full SVD: \\( A = UBV^T \\) where \\( U,V \\) are orthogonal and \\( B \\) is bidiagonal (nonzero only on the main diagonal and the superdiagonal) -- NOT a full SVD (diagonalizing \\( B \\) further needs an iterative implicit-shift QR sweep, out of this package's v0.2.0 scope per the README)."
+    "mat_transpose": {
+      "intuition": "Flip the matrix across its main diagonal -- what was row \\(i\\), column \\(j\\) becomes row \\(j\\), column \\(i\\).",
+      "formula": "\\[ (A^T)_{ij} = A_{ji} \\]",
+      "example": "For \\(A=\\begin{pmatrix}1&2&3\\\\4&5&6\\end{pmatrix}\\) (a \\(2\\times3\\) matrix): \\(A^T = \\begin{pmatrix}1&4\\\\2&5\\\\3&6\\end{pmatrix}\\) (a \\(3\\times2\\) matrix) -- each COLUMN of \\(A\\) became a ROW of \\(A^T\\).",
+      "why": "Transposing a rectangular matrix always swaps its dimensions (\\(m\\times n\\) becomes \\(n\\times m\\)) -- only a SQUARE matrix's transpose has the same shape as the original."
+    },
+    "dot_n": {
+      "intuition": "Multiply corresponding entries together and add up the results -- the standard vector dot product.",
+      "formula": "\\[ x\\cdot y = \\sum_{i=1}^n x_iy_i \\]",
+      "example": "For \\(x=(3,4)\\), \\(y=(1,2)\\): \\(x\\cdot y = 3\\times1+4\\times2 = 3+8=11\\).",
+      "why": "Named `dot_n` (not just `dot`) specifically to avoid a naming collision with the compiler's own builtin `vec_dot` -- both compute the same thing, but this package needs its own name since it's user-level vāṇी source, not a compiler intrinsic."
+    },
+    "vec_norm2": {
+      "intuition": "A vector's length -- the same Pythagorean idea as [vani-geometry](https://github.com/enthusiasticgeek/vani-geometry)'s point distance, generalized to any number of dimensions.",
+      "formula": "\\[ \\lVert x\\rVert_2 = \\sqrt{\\sum_i x_i^2} \\]",
+      "example": "For \\(x=(3,4)\\): \\(\\lVert x\\rVert_2 = \\sqrt{9+16}=\\sqrt{25}=5\\) -- the familiar 3-4-5 right triangle.",
+      "why": "This is exactly what `mat_norm_fro` generalizes to a whole MATRIX (treating every entry as one long vector) -- the same square-root-of-sum-of-squares idea, just applied to a 2D grid of numbers instead of a 1D list."
+    },
+    "vec_outer": {
+      "intuition": "While the dot product COMBINES two vectors down into a single number, the outer product does the opposite -- it EXPANDS them into a full matrix, one entry for every possible pairing of one element from each vector.",
+      "formula": "\\[ (x\\otimes y)_{ij} = x_iy_j \\]",
+      "example": "For \\(x=(3,4)\\), \\(y=(1,2)\\): row 0 is \\(x_0\\times y = 3\\times(1,2)=(3,6)\\); row 1 is \\(x_1\\times y=4\\times(1,2)=(4,8)\\). Result: \\(\\begin{pmatrix}3&6\\\\4&8\\end{pmatrix}\\).",
+      "why": "Every row of the result is just a SCALED COPY of \\(y\\) (row \\(i\\) is \\(x_i\\) times \\(y\\)) -- this is why an outer product always produces a \"rank-1\" matrix: every row points in the same direction (that of \\(y\\)), just scaled differently, so the matrix has no more genuine 2D information in it than the two original vectors did."
+    },
+    "mat_norm_fro": {
+      "intuition": "The matrix version of `vec_norm2` -- pretend every entry of the matrix is part of one giant flattened vector, and take that vector's length.",
+      "formula": "\\[ \\lVert A\\rVert_F = \\sqrt{\\sum_{i,j}A_{ij}^2} \\]",
+      "example": "For the running matrix \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\): \\(\\lVert M_1\\rVert_F = \\sqrt{4^2+2^2+2^2+5^2}=\\sqrt{16+4+4+25}=\\sqrt{49}=7\\).",
+      "why": "Unlike `mat_norm_max` (which only looks at the SINGLE largest entry), the Frobenius norm accounts for EVERY entry's contribution -- useful as an overall \"how big is this matrix\" measure, e.g. for measuring how much two matrices differ (\\(\\lVert A-B\\rVert_F\\))."
+    },
+    "mat_norm_max": {
+      "intuition": "The simplest possible matrix size measure -- just the single largest absolute value anywhere in the matrix, ignoring everything else.",
+      "formula": "\\[ \\max_{i,j}|A_{ij}| \\]",
+      "example": "For \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\): the largest absolute entry is \\(5\\).",
+      "why": "Much cheaper to compute than `mat_norm_fro` (no squaring or square root needed, just comparisons), but it throws away information about every OTHER entry -- two very different matrices could easily share the same max-norm if they happen to have the same single largest entry."
+    },
+    "mat_mul": {
+      "intuition": "Each entry of the product is a dot product: row \\(i\\) of the first matrix against column \\(j\\) of the second.",
+      "formula": "\\[ C_{ij} = \\sum_{k=1}^n A_{ik}B_{kj} \\]",
+      "example": "\\(M_1\\times M_2 = \\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}\\): \\(C_{00}=4\\times2+2\\times1=10\\). \\(C_{01}=4\\times1+2\\times2=8\\). \\(C_{10}=2\\times2+5\\times1=9\\). \\(C_{11}=2\\times1+5\\times2=12\\). Result: \\(\\begin{pmatrix}10&8\\\\9&12\\end{pmatrix}\\).",
+      "why": "This is genuinely `dot_n` applied \\(n^2\\) times (once per output entry), each time between a row of \\(A\\) and a column of \\(B\\) -- the reason matrix multiplication costs \\(O(n^3)\\) for two \\(n\\times n\\) matrices: \\(n^2\\) output entries, each needing an \\(O(n)\\)-length dot product."
+    },
+    "mat_mul_rect": {
+      "intuition": "The exact same row-dot-column idea as `mat_mul`, just without requiring the matrices to be square -- as long as the first matrix's column count matches the second's row count, the shapes work out.",
+      "formula": "For \\(A\\) (\\(m\\times k\\)) and \\(B\\) (\\(k\\times n\\)): \\[ C_{ij}=\\sum_{l=1}^kA_{il}B_{lj} \\]",
+      "example": "\\(A=\\begin{pmatrix}1&2&3\\\\4&5&6\\end{pmatrix}\\) (\\(2\\times3\\)) times \\(B=\\begin{pmatrix}1&0\\\\0&1\\\\1&1\\end{pmatrix}\\) (\\(3\\times2\\)): \\(C_{00}=1\\times1+2\\times0+3\\times1=4\\). \\(C_{01}=1\\times0+2\\times1+3\\times1=5\\). \\(C_{10}=4\\times1+5\\times0+6\\times1=10\\). \\(C_{11}=4\\times0+5\\times1+6\\times1=11\\). Result (\\(2\\times2\\)): \\(\\begin{pmatrix}4&5\\\\10&11\\end{pmatrix}\\).",
+      "why": "This general rectangular form is what [vani-tensor](https://github.com/enthusiasticgeek/vani-tensor)'s `tensor_contract_last_first` reuses directly -- because this package's row-major flat layout means a tensor's data is already exactly a matrix's data in memory, no conversion needed."
+    },
+    "mat_vec_mul": {
+      "intuition": "A matrix times a vector is really just matrix-times-matrix where the second matrix happens to have only one column -- each output entry is one row of \\(A\\) dotted with the whole vector \\(x\\).",
+      "formula": "\\[ y_i = \\sum_j A_{ij}x_j \\]",
+      "example": "\\(M_1x\\) for \\(x=(3,4)\\): \\(y_0 = 4\\times3+2\\times4=12+8=20\\). \\(y_1=2\\times3+5\\times4=6+20=26\\). Result: \\((20,26)\\).",
+      "why": "This is exactly the \\(n=1\\)-column special case of `mat_mul_rect` -- no separate algorithm, just a narrower version of the same row-dot-column computation."
+    },
+    "mat_pow_n": {
+      "intuition": "Multiplying a matrix by itself \\(p-1\\) times works but wastes effort -- exponentiation by repeated squaring gets there with far fewer multiplications, the same trick [vani-bignum](https://github.com/enthusiasticgeek/vani-bignum)'s `bn_pow_i64` uses for big integers.",
+      "formula": "\\(A^p\\) via repeated squaring: build \\(A^1,A^2,A^4,\\ldots\\) and combine the ones corresponding to \\(p\\)'s set bits.",
+      "example": "Compute \\(M_2^3\\) (\\(3=11_2\\), needing \\(M_2^1\\) and \\(M_2^2\\)). First, \\(M_2^2=M_2\\times M_2\\): \\(\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}^2\\): \\(C_{00}=2\\times2+1\\times1=5\\), \\(C_{01}=2\\times1+1\\times2=4\\), \\(C_{10}=1\\times2+2\\times1=4\\), \\(C_{11}=1\\times1+2\\times2=5\\) -- \\(M_2^2=\\begin{pmatrix}5&4\\\\4&5\\end{pmatrix}\\). Now combine with \\(M_2^1\\): \\(M_2^3 = M_2^2\\times M_2 = \\begin{pmatrix}5&4\\\\4&5\\end{pmatrix}\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}\\): \\(C_{00}=5\\times2+4\\times1=14\\), \\(C_{01}=5\\times1+4\\times2=13\\), \\(C_{10}=4\\times2+5\\times1=13\\), \\(C_{11}=4\\times1+5\\times2=14\\). Result: \\(M_2^3=\\begin{pmatrix}14&13\\\\13&14\\end{pmatrix}\\) -- computed with 2 matrix multiplications instead of the 2 that naive repeated multiplication would ALSO need here (the saving becomes dramatic for larger \\(p\\): \\(p=100\\) needs only about 7 squarings this way, versus 99 naive multiplications).",
+      "why": "For LARGE exponents this is the difference between a computation finishing instantly and one that's impractically slow -- \\(O(\\log p)\\) matrix multiplications (each itself \\(O(n^3)\\)) instead of \\(O(p)\\) of them."
+    },
+    "mat_det_2x2": {
+      "intuition": "For a \\(2\\times2\\) matrix, the determinant has a direct, memorable formula: multiply the main diagonal, subtract the product of the other diagonal.",
+      "formula": "\\[ \\det\\begin{pmatrix}a&b\\\\c&d\\end{pmatrix} = ad-bc \\]",
+      "example": "\\(\\det(M_1) = \\det\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix} = 4\\times5-2\\times2=20-4=16\\).",
+      "why": "A nonzero determinant is exactly what guarantees `mat_inv_2x2` has a valid answer -- \\(16\\ne0\\) here confirms \\(M_1\\) really is invertible, checked directly in `mat_inv_2x2`'s own worked example."
+    },
+    "mat_inv_2x2": {
+      "intuition": "For \\(2\\times2\\) specifically, there's a direct shortcut: swap the two diagonal entries, negate the two off-diagonal entries, then divide everything by the determinant.",
+      "formula": "\\[ \\begin{pmatrix}a&b\\\\c&d\\end{pmatrix}^{-1} = \\dfrac1{ad-bc}\\begin{pmatrix}d&-b\\\\-c&a\\end{pmatrix} \\]",
+      "example": "\\(M_1^{-1}\\) for \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\), determinant \\(16\\) (from `mat_det_2x2`'s example): swap diagonal (\\(4\\leftrightarrow5\\)), negate off-diagonal (\\(2\\to-2\\)): \\(\\dfrac1{16}\\begin{pmatrix}5&-2\\\\-2&4\\end{pmatrix} = \\begin{pmatrix}0.3125&-0.125\\\\-0.125&0.25\\end{pmatrix}\\). Check: \\(M_1\\times M_1^{-1}\\) should be the identity -- row 0: \\(4\\times0.3125+2\\times(-0.125) = 1.25-0.25=1\\) (correct, matches identity's \\((0,0)\\) entry) and \\(4\\times(-0.125)+2\\times0.25=-0.5+0.5=0\\) (correct, matches identity's \\((0,1)\\) entry).",
+      "why": "This closed form is undefined exactly when the determinant is 0 -- dividing by zero has no meaning, matching the fact that a matrix with zero determinant genuinely has no inverse at all (it squashes some direction down to nothing, an operation with no way to undo)."
+    },
+    "mat_det_3x3": {
+      "intuition": "Expand along the first row: for each entry in that row, multiply it by the determinant of the smaller \\(2\\times2\\) matrix left over after crossing out that entry's row and column, alternating signs.",
+      "formula": "\\[ \\det A = a(ei-fh) - b(di-fg) + c(dh-eg) \\quad \\text{for } A=\\begin{pmatrix}a&b&c\\\\d&e&f\\\\g&h&i\\end{pmatrix} \\]",
+      "example": "For \\(A=\\begin{pmatrix}1&2&3\\\\4&5&6\\\\7&8&10\\end{pmatrix}\\): \\(\\det A = 1(5\\times10-6\\times8) - 2(4\\times10-6\\times7) + 3(4\\times8-5\\times7) = 1(50-48)-2(40-42)+3(32-35) = 1(2)-2(-2)+3(-3) = 2+4-9=-3\\).",
+      "why": "Notice each \\(2\\times2\\) sub-determinant here is exactly `mat_det_2x2`'s formula -- cofactor expansion is really just \"reduce the problem to several smaller versions of the same problem\", the same recursive pattern that (taken further) is what makes the general \\(n\\times n\\) case via cofactor expansion cost \\(O(n!)\\), which is exactly why `mat_det_n` uses LU decomposition instead once \\(n\\) grows past this hand-sized case."
+    },
+    "mat_inv_3x3": {
+      "intuition": "The same adjugate-over-determinant idea as `mat_inv_2x2`, just with more terms -- build a full matrix of \\(2\\times2\\) cofactor determinants (one per entry), transpose it, then divide by the overall determinant.",
+      "formula": "The transposed cofactor matrix (adjugate), divided by `mat_det_3x3`'s determinant.",
+      "example": "For the same \\(A\\) as `mat_det_3x3`'s example (determinant \\(-3\\)): every entry of the inverse is some \\(2\\times2\\) sub-determinant of \\(A\\) (built the same way `mat_det_3x3`'s cofactor terms were) divided by \\(-3\\) -- mechanically the same process as the \\(2\\times2\\) case, just 9 cofactor computations instead of 1.",
+      "why": "This closed-form approach only stays practical up to about \\(3\\times3\\) -- the number of cofactor terms needed grows factorially, which is exactly why `mat_inv_n` abandons this approach entirely for the general case, solving \\(n\\) linear systems via `mat_solve` instead."
+    },
+    "mat_det_n": {
+      "intuition": "Cofactor expansion (the \\(2\\times2\\)/\\(3\\times3\\) approach above) gets factorially expensive for larger matrices -- but there's a shortcut: for a TRIANGULAR matrix, the determinant is just the product of its diagonal entries, trivial to compute. LU decomposition factors any matrix into (essentially) triangular pieces, so this reuses that factorization instead of a separate cofactor computation.",
+      "formula": "\\[ \\det A = \\pm\\prod_{i=1}^n U_{ii} \\] (product of `lu_factor`'s diagonal pivots, sign flipped once per row swap performed during pivoting)",
+      "example": "For \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\), whose LU factorization (see `lu_factor`'s own example) has \\(U=\\begin{pmatrix}4&2\\\\0&4\\end{pmatrix}\\) with no row swaps needed: \\(\\det = U_{00}\\times U_{11} = 4\\times4=16\\) -- matching `mat_det_2x2`'s direct answer of \\(16\\) exactly.",
+      "why": "Both routes (`mat_det_2x2`'s direct formula and this LU-based approach) agree, as they must -- but the LU route costs \\(O(n^3)\\) for ANY size \\(n\\), while cofactor expansion's \\(O(n!)\\) cost becomes completely impractical well before \\(n\\) reaches even 15 or 20."
+    },
+    "mat_inv_n": {
+      "intuition": "Rather than a closed-form adjugate formula (impractical past \\(3\\times3\\)), find the inverse column-by-column: the \\(j\\)-th column of \\(A^{-1}\\) is exactly the solution to \\(Ax=e_j\\), where \\(e_j\\) is the \\(j\\)-th standard basis vector (the identity matrix's \\(j\\)-th column) -- so solve that system \\(n\\) times, once per column.",
+      "formula": "Solve \\(AX=I\\) column-by-column via `mat_solve`, assembling the columns of \\(X=A^{-1}\\).",
+      "example": "For \\(M_1\\), finding the first column of \\(M_1^{-1}\\) means solving \\(M_1x=(1,0)\\) (the first column of the \\(2\\times2\\) identity) -- and that solution, by construction, is exactly the first column of the inverse `mat_inv_2x2`'s example already computed directly: \\((0.3125,\\,-0.125)\\).",
+      "why": "This costs \\(n\\) linear solves (each \\(O(n^3)\\) if done naively, though reusing one LU factorization across all \\(n\\) right-hand sides brings the total cost down to roughly one factorization plus \\(n\\) cheap triangular solves) -- much more tractable at scale than the factorially-expensive adjugate approach `mat_inv_2x2`/`mat_inv_3x3` use, which only stays practical at their fixed, small sizes."
+    },
+    "mat_solve": {
+      "intuition": "Rather than computing \\(A^{-1}\\) explicitly and then multiplying by \\(b\\) (wasteful -- you'd compute far more information than you actually need), factor \\(A\\) once into triangular pieces and solve directly against \\(b\\) -- the standard, numerically preferred approach.",
+      "formula": "Solve \\(Ax=b\\) via LU decomposition (`lu_factor` then `lu_solve`), not explicit inversion.",
+      "example": "Solve \\(M_1x=(20,26)\\) (exactly the right-hand side `mat_vec_mul`'s example produced from \\(x=(3,4)\\)): `mat_solve` should recover \\(x=(3,4)\\) -- the original vector before it was multiplied by \\(M_1\\).",
+      "why": "This round-trip (`mat_vec_mul` then `mat_solve` recovering the original vector) is a natural correctness check: solving \\(Ax=b\\) for \\(x\\) is the precise INVERSE operation of computing \\(b=Ax\\), and a correct solver should always undo a correct multiplication exactly."
+    },
+    "lu_factor": {
+      "intuition": "Gaussian elimination, packaged for reuse: instead of solving one system and throwing away the elimination work, LU factorization SAVES that work as two triangular matrices, so future solves against different right-hand sides can reuse it cheaply instead of redoing the elimination from scratch.",
+      "formula": "\\[ PA=LU \\] \\(L\\) unit-lower-triangular (implicit 1s on the diagonal), \\(U\\) upper-triangular, \\(P\\) a row-permutation from partial pivoting.",
+      "example": "For \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\): no row swap is needed (the first pivot, \\(4\\), is already the larger candidate). Eliminate the \\(2\\) below it: multiplier \\(2/4=0.5\\); subtract \\(0.5\\times\\)row 0 from row 1: new row 1 is \\((2-0.5\\times4,\\ 5-0.5\\times2)=(0,\\,4)\\). So \\(L=\\begin{pmatrix}1&0\\\\0.5&1\\end{pmatrix}\\), \\(U=\\begin{pmatrix}4&2\\\\0&4\\end{pmatrix}\\), \\(P=I\\) (no swap). Check: \\(LU = \\begin{pmatrix}1&0\\\\0.5&1\\end{pmatrix}\\begin{pmatrix}4&2\\\\0&4\\end{pmatrix} = \\begin{pmatrix}4&2\\\\2&4+0.5\\times2\\times... \\end{pmatrix}\\) -- more directly: row 1 of \\(LU\\) is \\(0.5\\times(4,2)+1\\times(0,4)=(2,1+4)=(2,5)\\), matching \\(M_1\\)'s actual row 1 exactly.",
+      "why": "\\(U\\)'s diagonal, \\((4,4)\\), is exactly what `lu_det`'s example multiplies together to get the determinant -- and this SAME factorization (computed once) is reused by both `lu_det` and `lu_solve`, avoiding redoing the elimination work for each."
+    },
+    "lu_det": {
+      "intuition": "A triangular matrix's determinant is just the product of its diagonal (everything off the diagonal contributes nothing to a triangular matrix's determinant) -- so once you have \\(U\\), the determinant is immediate.",
+      "formula": "\\[ \\det A = \\pm\\prod_iU_{ii} \\]",
+      "example": "From `lu_factor`'s example, \\(U=\\begin{pmatrix}4&2\\\\0&4\\end{pmatrix}\\), no row swaps performed (so the sign stays positive): \\(\\det M_1 = 4\\times4=16\\) -- matching `mat_det_2x2`'s direct computation.",
+      "why": "Each row swap during pivoting flips the determinant's sign (a well-known property of determinants) -- `lu_factor` tracks how many swaps it performed specifically so `lu_det` can apply the correct overall sign, not just blindly multiply the diagonal."
+    },
+    "lu_solve": {
+      "intuition": "Once \\(A\\) is factored as \\(LU\\), solving \\(Ax=b\\) becomes two much EASIER problems in sequence: first solve \\(Ly=b\\) (easy, since \\(L\\) is triangular -- work top to bottom, each equation has only one new unknown), then solve \\(Ux=y\\) (same idea, bottom to top).",
+      "formula": "Forward substitution \\(Ly=Pb\\), then back substitution \\(Ux=y\\).",
+      "example": "Solve \\(M_1x=(20,26)\\) using `lu_factor`'s \\(L=\\begin{pmatrix}1&0\\\\0.5&1\\end{pmatrix}\\), \\(U=\\begin{pmatrix}4&2\\\\0&4\\end{pmatrix}\\). Forward substitution \\(Ly=(20,26)\\): \\(y_0=20\\); \\(0.5\\times20+y_1=26\\Rightarrow y_1=26-10=16\\). Back substitution \\(Ux=y=(20,16)\\): from row 1, \\(4x_1=16\\Rightarrow x_1=4\\); from row 0, \\(4x_0+2\\times4=20\\Rightarrow4x_0=12\\Rightarrow x_0=3\\). Result \\(x=(3,4)\\) -- matching `mat_solve`'s expected answer exactly.",
+      "why": "Each triangular solve is only \\(O(n^2)\\) -- far cheaper than the \\(O(n^3)\\) factorization step itself, which is the whole point of factoring once: solving against MANY different right-hand sides (many different \\(b\\) vectors, same \\(A\\)) only pays the expensive \\(O(n^3)\\) cost once, then each additional solve is comparatively cheap."
+    },
+    "cholesky_factor": {
+      "intuition": "For a SYMMETRIC positive-definite matrix specifically, there's a more efficient factorization than general LU -- roughly half the work, by exploiting the symmetry directly instead of treating the matrix as arbitrary.",
+      "formula": "\\[ A=LL^T \\] \\(L\\) lower-triangular, valid only when \\(A\\) is genuinely symmetric positive-definite.",
+      "example": "For \\(M_1=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\) (symmetric, and positive-definite since both leading determinants \\(4\\) and \\(16\\) are positive): \\(L_{00}=\\sqrt4=2\\). \\(L_{10}=2/L_{00}=2/2=1\\). \\(L_{11}=\\sqrt{5-L_{10}^2}=\\sqrt{5-1}=\\sqrt4=2\\). So \\(L=\\begin{pmatrix}2&0\\\\1&2\\end{pmatrix}\\). Check: \\(LL^T = \\begin{pmatrix}2&0\\\\1&2\\end{pmatrix}\\begin{pmatrix}2&1\\\\0&2\\end{pmatrix} = \\begin{pmatrix}4&2\\\\2&1+4\\end{pmatrix}=\\begin{pmatrix}4&2\\\\2&5\\end{pmatrix}\\) -- exactly \\(M_1\\).",
+      "why": "If \\(A\\) were NOT actually positive-definite, a diagonal entry like \\(L_{11}\\) here would require taking the square root of a NEGATIVE number partway through -- this function fails cleanly at that point rather than producing nonsensical complex or garbage output, which is exactly how you'd discover a matrix isn't positive-definite in the first place."
+    },
+    "cholesky_solve": {
+      "intuition": "The same two-triangular-solves idea as `lu_solve`, specialized to a Cholesky factorization -- forward substitution with \\(L\\), then back substitution with \\(L^T\\) instead of a separate \\(U\\).",
+      "formula": "Forward substitution \\(Ly=b\\), then back substitution \\(L^Tx=y\\).",
+      "example": "Solve \\(M_1x=(20,26)\\) using `cholesky_factor`'s \\(L=\\begin{pmatrix}2&0\\\\1&2\\end{pmatrix}\\). Forward: \\(Ly=(20,26)\\): \\(2y_0=20\\Rightarrow y_0=10\\); \\(y_0+2y_1=26\\Rightarrow2y_1=16\\Rightarrow y_1=8\\). Back: \\(L^Tx=(10,8)\\), where \\(L^T=\\begin{pmatrix}2&1\\\\0&2\\end{pmatrix}\\): \\(2x_1=8\\Rightarrow x_1=4\\); \\(2x_0+x_1=10\\Rightarrow2x_0=6\\Rightarrow x_0=3\\). Result \\(x=(3,4)\\) -- the same answer `lu_solve`'s example found for the identical system, via a different (symmetric-exploiting) factorization.",
+      "why": "For a large symmetric positive-definite system (common in optimization Hessians and covariance matrices), reaching for Cholesky instead of general LU roughly halves both the factorization work AND the memory needed to store the factors -- worth using whenever you know your matrix qualifies."
+    },
+    "mat_eig_power": {
+      "intuition": "Repeatedly applying a matrix to almost any starting vector and renormalizing will eventually \"align\" that vector with the DOMINANT eigenvector -- each application stretches the dominant direction's component more than any other direction's, so after enough iterations, the dominant direction overwhelms everything else.",
+      "formula": "\\[ v_{k+1} = Av_k/\\lVert Av_k\\rVert \\] converging to the eigenvector of the largest-magnitude eigenvalue; the Rayleigh quotient \\(v_k^TAv_k\\) converges to that eigenvalue itself.",
+      "example": "\\(M_2=\\begin{pmatrix}2&1\\\\1&2\\end{pmatrix}\\) has EXACT eigenvalues \\(1\\) and \\(3\\) (check: \\((2-\\lambda)^2-1=0 \\Rightarrow 2-\\lambda=\\pm1 \\Rightarrow \\lambda=1\\text{ or }3\\)), with eigenvector \\((1,1)\\) for \\(\\lambda=3\\) (check: \\(M_2(1,1) = (2+1,\\,1+2)=(3,3)=3(1,1)\\), confirmed). Starting power iteration from ANY vector not exactly aligned with the other eigenvector -- e.g. \\((1,0)\\): \\(Av_0 = M_2(1,0)=(2,1)\\), normalize: \\(\\approx(0.894,0.447)\\) -- already visibly tilting toward the \\((1,1)/\\sqrt2\\approx(0.707,0.707)\\) direction, and further iterations converge closer still.",
+      "why": "Because \\(M_2\\) here has an exactly known dominant eigenvalue \\(3\\) (twice the OTHER eigenvalue \\(1\\)), power iteration converges reasonably fast -- the CONVERGENCE RATE depends on the ratio between the two largest eigenvalues' magnitudes; a ratio close to 1 (two nearly-tied eigenvalues) would make convergence much slower, needing many more iterations to clearly separate the dominant direction from the runner-up."
+    },
+    "mat_eig_deflate": {
+      "intuition": "Once you've found the dominant eigenpair, you can \"subtract it out\" of the matrix so that a second round of power iteration finds the NEXT eigenpair instead of just re-finding the same dominant one again.",
+      "formula": "\\[ A - \\lambda vv^T \\] for a found eigenpair \\((\\lambda,v)\\) with \\(v\\) normalized to unit length.",
+      "example": "Using \\(M_2\\)'s dominant eigenpair \\(\\lambda=3\\), \\(v=(1,1)/\\sqrt2\\): \\(vv^T = \\begin{pmatrix}0.5&0.5\\\\0.5&0.5\\end{pmatrix}\\) (the outer product of the unit eigenvector with itself). \\(\\lambda vv^T = \\begin{pmatrix}1.5&1.5\\\\1.5&1.5\\end{pmatrix}\\). Deflated matrix: \\(M_2 - \\lambda vv^T = \\begin{pmatrix}2-1.5&1-1.5\\\\1-1.5&2-1.5\\end{pmatrix}=\\begin{pmatrix}0.5&-0.5\\\\-0.5&0.5\\end{pmatrix}\\). Running power iteration on THIS deflated matrix should converge to the OTHER eigenvalue, \\(1\\), with eigenvector \\((1,-1)/\\sqrt2\\) -- check: deflated matrix times \\((1,-1)\\): \\((0.5+0.5,\\,-0.5-0.5)=(1,-1)=1\\times(1,-1)\\), confirmed as an eigenvector with eigenvalue \\(1\\).",
+      "why": "This rank-1 subtraction trick is only mathematically valid for a SYMMETRIC matrix with orthonormal eigenvectors -- [vani-algebra](https://github.com/enthusiasticgeek/vani-algebra)'s README explains why its own companion-matrix eigenvalue use case deliberately avoids this function: a companion matrix isn't symmetric, so this deflation would silently corrupt every subsequent root it tried to find."
+    },
+    "mat_cond": {
+      "intuition": "How sensitive is solving \\(Ax=b\\) to small errors or perturbations in \\(A\\) or \\(b\\)? The condition number answers this: a LARGE ratio between the biggest and smallest eigenvalue magnitudes means the matrix stretches some directions enormously more than others, so a tiny nudge to the input can produce a wildly different solution.",
+      "formula": "\\[ \\kappa(A) = \\lambda_{\\max}/\\lambda_{\\min} \\] (via repeated `mat_eig_power`/`mat_eig_deflate`)",
+      "example": "For \\(M_2\\), eigenvalues \\(3\\) and \\(1\\) (from `mat_eig_power`/`mat_eig_deflate`'s examples): \\(\\kappa(M_2) = 3/1=3\\) -- a modest condition number, meaning `mat_solve` on this particular matrix isn't especially sensitive to small perturbations.",
+      "why": "A condition number of \\(3\\) is quite tame -- a genuinely ILL-conditioned matrix might have a condition number in the thousands or millions, where even tiny floating-point rounding errors in the input can produce a solution that's completely unreliable, a real practical concern this function lets you check for before trusting a `mat_solve` result blindly."
+    },
+    "mat_qr_householder": {
+      "intuition": "Builds an orthogonal (rotation/reflection-only, shape-preserving) matrix \\(Q\\) and an upper-triangular matrix \\(R\\) such that \\(A=QR\\), by applying a sequence of reflections that each zero out everything below one diagonal entry, working column by column.",
+      "formula": "\\[ A=QR, \\quad Q^TQ=I,\\ R \\text{ upper-triangular} \\]",
+      "example": "For a matrix already upper-triangular, like \\(U=\\begin{pmatrix}4&2\\\\0&4\\end{pmatrix}\\) (from `lu_factor`'s example): no reflection is even needed -- \\(Q=I\\) (the identity) and \\(R=U\\) itself, since \\(U\\) already has the exact shape \\(R\\) is supposed to have.",
+      "why": "This trivial case is a useful sanity check on the general algorithm: QR decomposition of an ALREADY-upper-triangular matrix should do essentially nothing, confirming the Householder reflection process correctly recognizes when there's nothing left to zero out."
+    },
+    "mat_svd_bidiag": {
+      "intuition": "A full Singular Value Decomposition is a genuinely hard, iterative computation -- this function does the first, more tractable HALF of the work: reducing the matrix to bidiagonal form (nonzero only on the main diagonal and the one diagonal just above it) via a sequence of Householder reflections applied from both sides, leaving the harder \"fully diagonalize this\" step for a further iterative process this package doesn't implement.",
+      "formula": "\\[ A = UBV^T \\] \\(U,V\\) orthogonal, \\(B\\) bidiagonal.",
+      "example": "For an already-diagonal matrix (a special case of already-bidiagonal, with the superdiagonal entries already zero), like \\(\\begin{pmatrix}3&0\\\\0&1\\end{pmatrix}\\): no reduction work is needed at all -- \\(U=V=I\\) and \\(B\\) is the matrix itself, since it's already in the target bidiagonal shape.",
+      "why": "Genuinely completing a full SVD from this bidiagonal starting point needs an iterative implicit-shift QR sweep on \\(B\\) -- explicitly out of this package's v0.2.0 scope per the README, so `mat_svd_bidiag` is a stepping stone toward a full SVD implementation, not a complete one by itself."
+    }
   }
 }
