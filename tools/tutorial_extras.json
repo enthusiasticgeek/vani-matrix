@@ -12,7 +12,7 @@
       "intuition": "Multiply corresponding entries together and add up the results -- the standard vector dot product.",
       "formula": "\\[ x\\cdot y = \\sum_{i=1}^n x_iy_i \\]",
       "example": "For \\(x=(3,4)\\), \\(y=(1,2)\\): \\(x\\cdot y = 3\\times1+4\\times2 = 3+8=11\\).",
-      "why": "Named `dot_n` (not just `dot`) specifically to avoid a naming collision with the compiler's own builtin `vec_dot` -- both compute the same thing, but this package needs its own name since it's user-level vāṇी source, not a compiler intrinsic."
+      "why": "Named `dot_n` (not just `dot`) specifically to avoid a naming collision with the compiler's own builtin `vec_dot` -- both compute the same thing, but this package needs its own name since it's user-level vāṇī source, not a compiler intrinsic."
     },
     "vec_norm2": {
       "intuition": "A vector's length -- the same Pythagorean idea as [vani-geometry](https://github.com/enthusiasticgeek/vani-geometry)'s point distance, generalized to any number of dimensions.",

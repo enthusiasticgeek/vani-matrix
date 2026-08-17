@@ -3,8 +3,8 @@
 # unlike src/*.md, this file is NOT regenerated on subsequent runs.
 [book]
 title = "matrix — API Reference"
-authors = ["vāṇी contributors"]
-description = "Auto-generated function-by-function API reference for the matrix vāṇी package."
+authors = ["vāṇī contributors"]
+description = "Auto-generated function-by-function API reference for the matrix vāṇī package."
 language = "en"
 src = "src"
 
