@@ -5,6 +5,8 @@ Dense linear algebra library for the [vāṇī compiler](https://github.com/enth
 Matrices are stored as flat row-major `Vec<f64>`: element (i, j) of an m×n matrix M is `M[i*n + j]`.
 All functions take explicit dimension arguments so no metadata is hidden inside the Vec.
 
+**API reference / tutorial:** <https://enthusiasticgeek.github.io/vani-matrix/>
+
 ## Add to your project
 
 ```toml
